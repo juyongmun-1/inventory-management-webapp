@@ -215,7 +215,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div class="app" id="app">
   <div class="header">
     <div><div class="header-title" id="hd-title">대시보드</div><div class="header-sub" id="hd-sub">실시간 재고 현황</div></div>
-    <button class="icon-btn" onclick="openSettings()">⚙️</button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="icon-btn" id="hd-add" style="display:none;background:var(--primary);color:#fff;border-radius:50%;width:34px;height:34px;font-size:22px;font-weight:300;line-height:1;" onclick="onFabClick()">+</button>
+      <button class="icon-btn" onclick="openSettings()">⚙️</button>
+    </div>
   </div>
   <div class="content" id="content"></div>
   <button class="fab" id="fab" onclick="onFabClick()">+</button>
@@ -408,7 +411,9 @@ function go(tab){
   const nav=document.getElementById('nav-'+tab);if(nav)nav.classList.add('active');
   const[title,sub]=tabMeta[tab]||['',''];
   document.getElementById('hd-title').textContent=title;document.getElementById('hd-sub').textContent=sub;
-  document.getElementById('fab').style.display=(tab==='products'||tab==='consign')?'flex':'none';
+  const showAdd=tab==='products'||tab==='consign';
+  document.getElementById('fab').style.display=showAdd?'flex':'none';
+  document.getElementById('hd-add').style.display=showAdd?'flex':'none';
   switch(tab){case 'dash':renderDash();break;case 'products':renderProducts();break;case 'inout':renderInOut();break;case 'consign':renderConsign();break;case 'history':renderHistory();break;}
 }
 function onFabClick(){if(S.tab==='products')showProductForm(null);else if(S.tab==='consign')showLocationForm(null);}
