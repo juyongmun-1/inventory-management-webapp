@@ -196,41 +196,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </head>
 <body>
 
-<div class="setup" id="setup-screen">
+<div class="setup" id="setup-screen" style="display:none">
   <div class="setup-card">
     <div class="setup-logo">
       <div class="icon">📦</div>
       <h1>재고 관리</h1>
       <p>창고 + 위탁처 통합 재고 관리</p>
     </div>
-    <div id="step1">
-      <div class="step-dots"><div class="step-dot active"></div><div class="step-dot"></div></div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
-        무료 DB 서비스 <a href="https://supabase.com" target="_blank" style="color:var(--primary);">supabase.com</a>에<br>
-        프로젝트 생성 후 API 키를 입력하세요.
-      </p>
-      <div class="infobox">Supabase → <strong>Settings → API</strong> 에서<br><strong>Project URL</strong>과 <strong>anon public key</strong>를 복사하세요.</div>
-      <div class="fg"><label>Project URL</label><input type="url" id="sb-url" placeholder="https://xxxx.supabase.co"></div>
-      <div class="fg"><label>Anon Key</label><input type="text" id="sb-key" placeholder="eyJh..."></div>
-      <button class="btn btn-primary" onclick="goStep2()">다음 →</button>
-    </div>
-    <div id="step2" style="display:none">
-      <div class="step-dots"><div class="step-dot done"></div><div class="step-dot active"></div></div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">거래 이력에 표시될 내 이름을 입력하세요.</p>
-      <div class="fg"><label>이름</label><input type="text" id="sb-name" placeholder="홍길동" maxlength="20"></div>
-      <button class="btn btn-primary" onclick="finishSetup()">시작하기 🚀</button>
-      <button class="btn btn-secondary" style="margin-top:8px;" onclick="backStep1()">← 이전</button>
-    </div>
-    <div id="step-sql" style="display:none">
-      <div style="text-align:center;margin-bottom:16px;">
-        <div style="font-size:40px;">🛠️</div>
-        <h2 style="font-size:17px;font-weight:800;margin-top:8px;">DB 테이블 설정 필요</h2>
-        <p style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;">Supabase → <strong>SQL Editor</strong>에 붙여넣고 실행하세요</p>
-      </div>
-      <div class="sql-block"><pre id="sql-content"></pre></div>
-      <button class="btn btn-primary" onclick="copySql()">📋 SQL 복사하기</button>
-      <button class="btn btn-secondary" style="margin-top:8px;" onclick="location.reload()">완료 후 새로고침</button>
-    </div>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:20px;text-align:center;line-height:1.6;">
+      팀원 이름을 입력하세요.<br>
+      <span style="font-size:12px;">모든 입출고 이력에 자동으로 기록됩니다.</span>
+    </p>
+    <div class="fg"><label>내 이름</label><input type="text" id="sb-name" placeholder="홍길동" maxlength="20" style="font-size:18px;font-weight:700;text-align:center;"></div>
+    <button class="btn btn-primary" onclick="finishSetup()">시작하기 🚀</button>
   </div>
 </div>
 
@@ -266,46 +244,54 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script>
 const S={tab:'dash',products:[],locations:[],cstocks:[],transactions:[],cfg:null,sb:null,pSearch:'',pFilter:'all',txType:'in',txProduct:null,txLocation:null,histFilter:'all',histLocFilter:'all'};
 
-window.addEventListener('load',()=>{const c=loadCfg();if(c){S.cfg=c;connect();}else{document.getElementById('setup-screen').style.display='flex';}});
-function loadCfg(){try{return JSON.parse(localStorage.getItem('inv_cfg')||'null');}catch{return null;}}
-function saveCfg(c){localStorage.setItem('inv_cfg',JSON.stringify(c));}
+// ── Hard-coded credentials ──
+const SB_URL = 'https://ctmbygkiqimctmouylof.supabase.co';
+const SB_KEY = 'sb_publishable_uE-oA2O-lifSx7I9YcghdQ_v7I2wCRv';
 
-async function connect(){
-  try{
-    const{createClient}=supabase;
-    S.sb=createClient(S.cfg.url,S.cfg.key);
-    await loadAll();subscribeRT();
-    document.getElementById('setup-screen').style.display='none';
+window.addEventListener('load', () => {
+  const username = localStorage.getItem('inv_username');
+  if (username) {
+    S.cfg = { url: SB_URL, key: SB_KEY, username };
+    connect();
+  } else {
+    document.getElementById('setup-screen').style.display = 'flex';
+  }
+});
+
+function saveCfg(c) { localStorage.setItem('inv_username', c.username); }
+
+async function connect() {
+  try {
+    const { createClient } = supabase;
+    S.sb = createClient(SB_URL, SB_KEY);
+    await loadAll(); subscribeRT();
+    document.getElementById('setup-screen').style.display = 'none';
     document.getElementById('app').classList.add('on');
     go('dash');
-  }catch(e){toast('연결 실패: '+e.message,'e');document.getElementById('setup-screen').style.display='flex';}
+  } catch(e) { toast('연결 실패: ' + e.message, 'e'); document.getElementById('setup-screen').style.display = 'flex'; }
 }
-async function loadAll(){await Promise.all([loadProducts(),loadLocations(),loadCstocks(),loadTx()]);}
+async function loadAll() { await Promise.all([loadProducts(), loadLocations(), loadCstocks(), loadTx()]); }
 
-function goStep2(){
-  const url=document.getElementById('sb-url').value.trim(),key=document.getElementById('sb-key').value.trim();
-  if(!url||!key){toast('URL과 Key를 입력하세요','e');return;}
-  S.cfg={url,key,username:''};
-  document.getElementById('step1').style.display='none';document.getElementById('step2').style.display='block';
-}
-async function finishSetup(){
-  const name=document.getElementById('sb-name').value.trim();
-  if(!name){toast('이름을 입력하세요','e');return;}
-  S.cfg.username=name;toast('연결 확인 중...','i');
-  try{
-    const{createClient}=supabase;S.sb=createClient(S.cfg.url,S.cfg.key);
-    const{error}=await S.sb.from('products').select('id').limit(1);
-    if(error&&error.code==='42P01'){showSqlGuide();return;}
-    if(error)throw error;
-    saveCfg(S.cfg);await loadAll();subscribeRT();
-    document.getElementById('setup-screen').style.display='none';
+function goStep2() {}
+async function finishSetup() {
+  const name = document.getElementById('sb-name').value.trim();
+  if (!name) { toast('이름을 입력하세요', 'e'); return; }
+  S.cfg = { url: SB_URL, key: SB_KEY, username: name };
+  localStorage.setItem('inv_username', name);
+  toast('연결 중...', 'i');
+  try {
+    const { createClient } = supabase;
+    S.sb = createClient(SB_URL, SB_KEY);
+    await loadAll(); subscribeRT();
+    document.getElementById('setup-screen').style.display = 'none';
     document.getElementById('app').classList.add('on');
-    go('dash');toast('환영합니다 '+name+'님 👋','s');
-  }catch(e){toast('오류: '+e.message,'e');}
+    go('dash');
+    toast('환영합니다 ' + name + '님 👋', 's');
+  } catch(e) { toast('오류: ' + e.message, 'e'); }
 }
-function backStep1(){document.getElementById('step2').style.display='none';document.getElementById('step1').style.display='block';}
-function showSqlGuide(){document.getElementById('step2').style.display='none';document.getElementById('sql-content').textContent=setupSQL();document.getElementById('step-sql').style.display='block';}
-function copySql(){navigator.clipboard.writeText(setupSQL()).then(()=>toast('SQL 복사됨!','s'));}
+function backStep1() {}
+function showSqlGuide() { document.getElementById('sql-content').textContent = setupSQL(); document.getElementById('step-sql').style.display = 'block'; }
+function copySql() { navigator.clipboard.writeText(setupSQL()).then(() => toast('SQL 복사됨!', 's')); }
 
 function setupSQL(){return `-- ① 제품 테이블
 CREATE TABLE products (
@@ -749,8 +735,10 @@ function openSettings(){
   showModal('설정',`
     <div class="set-section">
       <h3>내 계정</h3>
-      <div class="set-item"><div class="set-label">👤 이름</div><div class="set-value">${S.cfg.username}</div></div>
-      <div class="fg" style="margin-top:8px;"><label>이름 변경</label><input id="new-name" value="${S.cfg.username}"></div>
+      <div class="set-item" style="background:var(--primary-l);border:1px solid #BFDBFE;">
+        <div><div class="set-label">👤 ${S.cfg.username}</div><div class="set-value">현재 로그인 중</div></div>
+      </div>
+      <div class="fg" style="margin-top:12px;"><label>이름 변경</label><input id="new-name" value="${S.cfg.username}" style="font-size:16px;"></div>
       <button class="btn btn-outline btn-sm" onclick="changeName()">이름 변경</button>
     </div>
     <div class="set-section">
@@ -758,10 +746,10 @@ function openSettings(){
       <div class="set-item" onclick="refreshAll()" style="color:var(--primary)"><div class="set-label">🔄 데이터 새로고침</div><div>→</div></div>
     </div>
     <div class="divider"></div>
-    <button class="btn btn-danger" onclick="resetApp()">앱 초기화 (재연결)</button>
+    <button class="btn btn-danger" onclick="resetApp()">로그아웃</button>
   `,[]);
 }
-function changeName(){const n=document.getElementById('new-name').value.trim();if(!n)return;S.cfg.username=n;saveCfg(S.cfg);closeModal();toast('이름이 변경되었습니다','s');}
+function changeName(){const n=document.getElementById('new-name').value.trim();if(!n)return;S.cfg.username=n;localStorage.setItem('inv_username',n);closeModal();toast('이름이 변경되었습니다','s');}
 async function refreshAll(){toast('새로고침 중...','i');await loadAll();closeModal();go(S.tab);toast('업데이트 완료','s');}
 function resetApp(){if(!confirm('앱을 초기화하시겠습니까?\n데이터는 Supabase에 유지됩니다.'))return;localStorage.removeItem('inv_cfg');location.reload();}
 
