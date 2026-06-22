@@ -289,9 +289,11 @@ const S={
   pendingItems:[],pendingImageFile:null,
 };
 
-/* ── 카테고리/유형 ── */
+/* ── 카테고리/분류/유형 ── */
 function getCategories(){const s=localStorage.getItem('inv_categories');const c=s?JSON.parse(s):[];const d=[...new Set(S.products.map(p=>p.category).filter(Boolean))];return[...new Set([...c,...d])].sort();}
 function saveCategories(c){localStorage.setItem('inv_categories',JSON.stringify(c));}
+function getClassifications(){const s=localStorage.getItem('inv_classifications');if(s)return JSON.parse(s);return['완제품','원재료','반제품','소모품'];}
+function saveClassifications(c){localStorage.setItem('inv_classifications',JSON.stringify(c));}
 function getTypeLabels(){const s=localStorage.getItem('inv_type_labels');return s?JSON.parse(s):{own:'자체생산',oem:'OEM'};}
 function saveTypeLabels(l){localStorage.setItem('inv_type_labels',JSON.stringify(l));}
 function getTypeLabel(t){return getTypeLabels()[t]||t;}
@@ -820,9 +822,11 @@ function showProductDetail(id){
 }
 
 function showProductForm(p){
-  const isEdit=!!p;const cats=getCategories();const labels=getTypeLabels();
+  const isEdit=!!p;const cats=getCategories();const clsfs=getClassifications();const labels=getTypeLabels();
   S.pendingImageFile=null;
   const imgHtml=p?.image_url?`<img src="${p.image_url}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-size:32px;">📷</span>`;
+  const catOpts=`<option value="">선택 안함</option>`+cats.map(c=>`<option value="${c}" ${p?.category===c?'selected':''}>${c}</option>`).join('');
+  const clsOpts=`<option value="">선택 안함</option>`+clsfs.map(c=>`<option value="${c}" ${p?.classification===c?'selected':''}>${c}</option>`).join('');
   showModal(isEdit?'제품 수정':'제품 추가',`
     <div class="photo-upload-area" onclick="document.getElementById('pf-img-input').click()">
       <div class="photo-upload-box" id="pf-img-box">${imgHtml}</div>
@@ -831,7 +835,10 @@ function showProductForm(p){
     </div>
     <div class="fg"><label>제품명 *</label><input id="pf-name" value="${p?.name||''}" placeholder="제품 이름"></div>
     <div class="fg"><label>제품 코드/SKU *</label><input id="pf-code" value="${p?.code||''}" placeholder="예: SKU-001"></div>
-    <div class="fg"><label>카테고리</label><input id="pf-cat" value="${p?.category||''}" placeholder="카테고리" list="cat-list"><datalist id="cat-list">${cats.map(c=>`<option value="${c}">`).join('')}</datalist></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="fg"><label>카테고리</label><select id="pf-cat">${catOpts}</select></div>
+      <div class="fg"><label>분류</label><select id="pf-cls">${clsOpts}</select></div>
+    </div>
     <div class="fg"><label>생산 유형</label><select id="pf-type"><option value="own" ${p?.type!=='oem'?'selected':''}>${labels.own}</option><option value="oem" ${p?.type==='oem'?'selected':''}>${labels.oem}</option></select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div class="fg"><label>단가 (₩)</label><input type="number" id="pf-up" value="${p?.unit_price||''}" min="0"></div>
@@ -861,9 +868,9 @@ async function uploadProductImage(file,code){
 async function submitProduct(id){
   const name=document.getElementById('pf-name').value.trim(),code=document.getElementById('pf-code').value.trim();
   if(!name||!code){toast('제품명과 코드는 필수입니다','e');return;}
-  const catVal=document.getElementById('pf-cat').value.trim();
-  if(catVal){const cats=getCategories();if(!cats.includes(catVal))saveCategories([...cats,catVal]);}
-  const prod={id:id||undefined,name,code,category:catVal,type:document.getElementById('pf-type').value,unit_price:parseFloat(document.getElementById('pf-up').value)||0,cost_price:parseFloat(document.getElementById('pf-cp').value)||0,current_stock:parseInt(document.getElementById('pf-stock').value)||0,min_stock:parseInt(document.getElementById('pf-min').value)||0};
+  const catVal=document.getElementById('pf-cat').value;
+  const clsVal=document.getElementById('pf-cls').value;
+  const prod={id:id||undefined,name,code,category:catVal,classification:clsVal,type:document.getElementById('pf-type').value,unit_price:parseFloat(document.getElementById('pf-up').value)||0,cost_price:parseFloat(document.getElementById('pf-cp').value)||0,current_stock:parseInt(document.getElementById('pf-stock').value)||0,min_stock:parseInt(document.getElementById('pf-min').value)||0};
   if(!id)delete prod.id;
   if(S.pendingImageFile){try{toast('사진 업로드 중...','i');prod.image_url=await uploadProductImage(S.pendingImageFile,code);}catch(e){toast('사진 업로드 실패: '+e.message,'e');}}
   try{
@@ -1035,7 +1042,7 @@ function renderMore(){
 }
 
 function openSettings(){
-  const labels=getTypeLabels();const cats=getCategories();
+  const labels=getTypeLabels();const cats=getCategories();const clsfs=getClassifications();
   showModal('설정',`
     <div style="margin-bottom:20px;">
       <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;">내 계정</div>
@@ -1049,6 +1056,11 @@ function openSettings(){
       <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;">카테고리 관리</div>
       <div class="tag-list" id="cat-tag-list">${cats.length===0?'<span style="color:var(--muted);font-size:13px;">없음</span>':cats.map(c=>`<div class="tag-item">${c}<button class="tag-del" onclick="deleteCategorySetting('${c}')">×</button></div>`).join('')}</div>
       <div style="display:flex;gap:8px;"><input id="new-cat-input" placeholder="새 카테고리" style="flex:1;padding:10px;border:1.5px solid var(--border2);border-radius:10px;font-size:14px;"><button onclick="addCategorySetting()" style="padding:10px 14px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;">추가</button></div>
+    </div>
+    <div style="margin-bottom:20px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;">분류 관리</div>
+      <div class="tag-list" id="cls-tag-list">${clsfs.length===0?'<span style="color:var(--muted);font-size:13px;">없음</span>':clsfs.map(c=>`<div class="tag-item">${c}<button class="tag-del" onclick="deleteClassificationSetting('${c}')">×</button></div>`).join('')}</div>
+      <div style="display:flex;gap:8px;"><input id="new-cls-input" placeholder="예: 완제품, 원재료" style="flex:1;padding:10px;border:1.5px solid var(--border2);border-radius:10px;font-size:14px;"><button onclick="addClassificationSetting()" style="padding:10px 14px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;">추가</button></div>
     </div>
     <div style="margin-bottom:20px;">
       <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;">생산 유형 이름</div>
@@ -1067,7 +1079,9 @@ function openSettings(){
 }
 
 function copyOrderSQL(){
-  const sql=`-- 판매서
+  const sql=`-- 제품 분류 컬럼 추가 (최초 1회)
+ALTER TABLE products ADD COLUMN IF NOT EXISTS classification TEXT DEFAULT '';
+-- 판매서
 CREATE TABLE IF NOT EXISTS sales_orders (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, order_no TEXT NOT NULL, customer TEXT DEFAULT '', status TEXT DEFAULT 'draft', sale_date DATE, ship_date DATE, notes TEXT DEFAULT '', total_amount DECIMAL(12,2) DEFAULT 0, created_by TEXT DEFAULT '', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now());
 CREATE TABLE IF NOT EXISTS sales_order_items (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, order_id UUID REFERENCES sales_orders(id) ON DELETE CASCADE, product_id UUID REFERENCES products(id) ON DELETE SET NULL, product_name TEXT DEFAULT '', product_code TEXT DEFAULT '', quantity INTEGER DEFAULT 1, unit_price DECIMAL(10,2) DEFAULT 0);
 -- 발주서
@@ -1082,6 +1096,9 @@ CREATE POLICY "Public" ON sales_orders FOR ALL USING (true) WITH CHECK (true); C
 window.addCategorySetting=function(){const input=document.getElementById('new-cat-input');const val=input?.value.trim();if(!val){toast('입력하세요','e');return;}const cats=getCategories();if(cats.includes(val)){toast('이미 있습니다','e');return;}saveCategories([...cats,val]);input.value='';refreshCategoryTagList();};
 window.deleteCategorySetting=function(name){saveCategories(getCategories().filter(c=>c!==name));refreshCategoryTagList();};
 function refreshCategoryTagList(){const cats=getCategories();const el=document.getElementById('cat-tag-list');if(!el)return;el.innerHTML=cats.length===0?'<span style="color:var(--muted);font-size:13px;">없음</span>':cats.map(c=>`<div class="tag-item">${c}<button class="tag-del" onclick="deleteCategorySetting('${c}')">×</button></div>`).join('');}
+window.addClassificationSetting=function(){const input=document.getElementById('new-cls-input');const val=input?.value.trim();if(!val){toast('입력하세요','e');return;}const cls=getClassifications();if(cls.includes(val)){toast('이미 있습니다','e');return;}saveClassifications([...cls,val]);input.value='';refreshClassificationTagList();};
+window.deleteClassificationSetting=function(name){saveClassifications(getClassifications().filter(c=>c!==name));refreshClassificationTagList();};
+function refreshClassificationTagList(){const cls=getClassifications();const el=document.getElementById('cls-tag-list');if(!el)return;el.innerHTML=cls.length===0?'<span style="color:var(--muted);font-size:13px;">없음</span>':cls.map(c=>`<div class="tag-item">${c}<button class="tag-del" onclick="deleteClassificationSetting('${c}')">×</button></div>`).join('');}
 window.saveTypeLabelChanges=function(){const own=document.getElementById('type-own-input')?.value.trim()||'자체생산';const oem=document.getElementById('type-oem-input')?.value.trim()||'OEM';saveTypeLabels({own,oem});toast('저장됨','s');};
 function changeName(){const n=document.getElementById('new-name').value.trim();if(!n)return;S.cfg.username=n;localStorage.setItem('inv_username',n);closeModal();toast('이름 변경됨','s');}
 async function refreshAll(){toast('새로고침 중...','i');await loadAll();closeModal();go(S.tab);toast('완료','s');}
