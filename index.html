@@ -556,7 +556,7 @@ function showProductForm(p){
 async function submitProduct(id){
   const name=document.getElementById('pf-name').value.trim(),code=document.getElementById('pf-code').value.trim();
   if(!name||!code){toast('제품명과 코드는 필수입니다','e');return;}
-  const prod={id:id||undefined,name,code,category:document.getElementById('pf-cat').value.trim(),type:document.getElementById('pf-type').value,unit_price:parseFloat(document.getElementById('pf-up').value)||0,cost_price:parseFloat(document.getElementById('pf-cp').value)||0,current_stock:parseInt(document.getElementById('pf-stock').value)||0,min_stock:parseInt(document.getElementById('pf-min').value)||0,description:document.getElementById('pf-desc').value.trim()};
+  const prod={id:id||undefined,name,code,category:document.getElementById('pf-cat').value.trim(),type:document.getElementById('pf-type').value,unit_price:parseFloat(document.getElementById('pf-up').value)||0,cost_price:parseFloat(document.getElementById('pf-cp').value)||0,current_stock:parseInt(document.getElementById('pf-stock').value)||0,min_stock:parseInt(document.getElementById('pf-min').value)||0};
   if(!id)delete prod.id;
   try{
     const now=new Date().toISOString();
