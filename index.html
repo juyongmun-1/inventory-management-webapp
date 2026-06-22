@@ -18,16 +18,12 @@
   --nav-h:64px;
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
-.setup{position:fixed;inset:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,var(--primary),var(--primary-d));z-index:500;}
+.setup{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,var(--primary),var(--primary-d));z-index:500;}
 .setup-card{background:#fff;border-radius:20px;padding:32px 24px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.2);}
 .setup-logo{text-align:center;margin-bottom:24px;}
 .setup-logo .icon{font-size:48px;}
 .setup-logo h1{font-size:22px;font-weight:800;margin-top:8px;color:var(--primary);}
 .setup-logo p{color:var(--muted);font-size:13px;margin-top:4px;}
-.step-dots{display:flex;gap:8px;justify-content:center;margin-bottom:20px;}
-.step-dot{width:8px;height:8px;border-radius:50%;background:var(--border);}
-.step-dot.active{background:var(--primary);}
-.step-dot.done{background:var(--success);}
 .fg{margin-bottom:14px;}
 .fg label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;}
 .fg input,.fg select,.fg textarea{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:16px;color:var(--text);background:#fff;-webkit-appearance:none;transition:border-color .15s;}
@@ -100,9 +96,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .filter-row::-webkit-scrollbar{display:none;}
 .chip{padding:6px 13px;border-radius:20px;border:1.5px solid var(--border);background:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;color:var(--muted);}
 .chip.active{border-color:var(--primary);background:var(--primary-l);color:var(--primary);}
+/* 제품 카드 */
 .product-card{background:#fff;border-radius:14px;padding:13px 15px;margin-bottom:9px;box-shadow:0 1px 4px rgba(0,0,0,.07);display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .1s;}
 .product-card:active{transform:scale(.99);}
-.p-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;}
+.p-thumb{width:52px;height:52px;border-radius:12px;object-fit:cover;flex-shrink:0;}
+.p-thumb-placeholder{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
 .p-info{flex:1;min-width:0;}
 .p-name{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .p-code{font-size:11px;color:var(--muted);margin-top:1px;}
@@ -110,8 +108,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .p-stock{text-align:right;flex-shrink:0;}
 .p-stock-num{font-size:22px;font-weight:900;}
 .p-stock-num.low{color:var(--danger);}
-.p-stock-num.ok{color:var(--success);}
+.p-stock-num.ok{color:var(--primary);}
 .p-stock-label{font-size:10px;color:var(--muted);}
+/* 제품 사진 업로드 */
+.photo-upload-area{text-align:center;margin-bottom:18px;cursor:pointer;}
+.photo-upload-box{width:100px;height:100px;border-radius:16px;margin:0 auto 8px;background:var(--bg);border:2px dashed var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;}
+.photo-upload-box img{width:100%;height:100%;object-fit:cover;}
+.photo-upload-box .ph-icon{font-size:32px;}
+.photo-upload-label{font-size:13px;color:var(--primary);font-weight:600;}
+/* 카테고리 태그 편집 */
+.tag-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+.tag-item{background:var(--bg);border-radius:20px;padding:5px 10px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:5px;border:1px solid var(--border);}
+.tag-del{border:none;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:0;}
 .loc-card{background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:9px;box-shadow:0 1px 4px rgba(0,0,0,.07);display:flex;align-items:center;gap:12px;cursor:pointer;}
 .loc-icon{width:42px;height:42px;border-radius:12px;background:var(--purple-l);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
 .loc-info{flex:1;min-width:0;}
@@ -184,6 +192,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .loc-stock-row:last-child{border-bottom:none;}
 .loc-stock-name{font-size:13px;font-weight:600;}
 .loc-stock-qty{font-size:15px;font-weight:800;}
+/* 제품 상세 대표사진 */
+.detail-hero-img{width:100%;max-height:200px;object-fit:cover;border-radius:14px;margin-bottom:14px;}
+.detail-hero-placeholder{width:100%;height:120px;background:var(--bg);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:48px;margin-bottom:14px;}
 @media(min-width:500px){
   .sheet{max-width:500px;margin:0 auto;border-radius:20px;}
   .overlay{align-items:center;justify-content:center;}
@@ -245,120 +256,67 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div class="toast-wrap" id="toasts"></div>
 
 <script>
-const S={tab:'dash',products:[],locations:[],cstocks:[],transactions:[],cfg:null,sb:null,pSearch:'',pFilter:'all',txType:'in',txProduct:null,txLocation:null,histFilter:'all',histLocFilter:'all'};
+const S={tab:'dash',products:[],locations:[],cstocks:[],transactions:[],cfg:null,sb:null,pSearch:'',pFilter:'all',txType:'in',txProduct:null,txLocation:null,histFilter:'all',histLocFilter:'all',pendingImageFile:null,pendingImagePreview:null};
 
-// ── Hard-coded credentials ──
 const SB_URL = 'https://ctmbygkiqimctmouylof.supabase.co';
 const SB_KEY = 'sb_publishable_uE-oA2O-lifSx7I9YcghdQ_v7I2wCRv';
 
-window.addEventListener('load', () => {
-  const username = localStorage.getItem('inv_username');
-  if (username) {
-    S.cfg = { url: SB_URL, key: SB_KEY, username };
-    connect();
-  } else {
-    document.getElementById('setup-screen').style.display = 'flex';
-  }
+// ── 카테고리 & 유형 관리 ──
+function getCategories(){
+  const stored=localStorage.getItem('inv_categories');
+  const custom=stored?JSON.parse(stored):[];
+  const fromDB=[...new Set(S.products.map(p=>p.category).filter(Boolean))];
+  return [...new Set([...custom,...fromDB])].sort();
+}
+function saveCategories(cats){localStorage.setItem('inv_categories',JSON.stringify(cats));}
+function addCategoryToList(name){
+  const cats=getCategories();
+  if(!name||cats.includes(name))return;
+  saveCategories([...cats,name]);
+}
+
+function getTypeLabels(){
+  const stored=localStorage.getItem('inv_type_labels');
+  return stored?JSON.parse(stored):{own:'자체생산',oem:'OEM'};
+}
+function saveTypeLabels(labels){localStorage.setItem('inv_type_labels',JSON.stringify(labels));}
+function getTypeLabel(type){return getTypeLabels()[type]||type;}
+
+// ── 앱 초기화 ──
+window.addEventListener('load',()=>{
+  const username=localStorage.getItem('inv_username');
+  if(username){S.cfg={url:SB_URL,key:SB_KEY,username};connect();}
+  else{document.getElementById('setup-screen').style.display='flex';}
 });
 
-function saveCfg(c) { localStorage.setItem('inv_username', c.username); }
-
-async function connect() {
-  try {
-    const { createClient } = supabase;
-    S.sb = createClient(SB_URL, SB_KEY);
-    await loadAll(); subscribeRT();
-    document.getElementById('setup-screen').style.display = 'none';
+async function connect(){
+  try{
+    const{createClient}=supabase;
+    S.sb=createClient(SB_URL,SB_KEY);
+    await loadAll();subscribeRT();
+    document.getElementById('setup-screen').style.display='none';
     document.getElementById('app').classList.add('on');
     go('dash');
-  } catch(e) { toast('연결 실패: ' + e.message, 'e'); document.getElementById('setup-screen').style.display = 'flex'; }
+  }catch(e){toast('연결 실패: '+e.message,'e');document.getElementById('setup-screen').style.display='flex';}
 }
-async function loadAll() { await Promise.all([loadProducts(), loadLocations(), loadCstocks(), loadTx()]); }
+async function loadAll(){await Promise.all([loadProducts(),loadLocations(),loadCstocks(),loadTx()]);}
 
-function goStep2() {}
-async function finishSetup() {
-  const name = document.getElementById('sb-name').value.trim();
-  if (!name) { toast('이름을 입력하세요', 'e'); return; }
-  S.cfg = { url: SB_URL, key: SB_KEY, username: name };
-  localStorage.setItem('inv_username', name);
-  toast('연결 중...', 'i');
-  try {
-    const { createClient } = supabase;
-    S.sb = createClient(SB_URL, SB_KEY);
-    await loadAll(); subscribeRT();
-    document.getElementById('setup-screen').style.display = 'none';
+async function finishSetup(){
+  const name=document.getElementById('sb-name').value.trim();
+  if(!name){toast('이름을 입력하세요','e');return;}
+  S.cfg={url:SB_URL,key:SB_KEY,username:name};
+  localStorage.setItem('inv_username',name);
+  toast('연결 중...','i');
+  try{
+    const{createClient}=supabase;
+    S.sb=createClient(SB_URL,SB_KEY);
+    await loadAll();subscribeRT();
+    document.getElementById('setup-screen').style.display='none';
     document.getElementById('app').classList.add('on');
     go('dash');
-    toast('환영합니다 ' + name + '님 👋', 's');
-  } catch(e) { toast('오류: ' + e.message, 'e'); }
+    toast('환영합니다 '+name+'님 👋','s');
+  }catch(e){toast('오류: '+e.message,'e');}
 }
-function backStep1() {}
-function showSqlGuide() { document.getElementById('sql-content').textContent = setupSQL(); document.getElementById('step-sql').style.display = 'block'; }
-function copySql() { navigator.clipboard.writeText(setupSQL()).then(() => toast('SQL 복사됨!', 's')); }
-
-function setupSQL(){return `-- ① 제품 테이블
-CREATE TABLE products (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  code TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  category TEXT DEFAULT '',
-  type TEXT DEFAULT 'own',
-  unit_price DECIMAL(10,2) DEFAULT 0,
-  cost_price DECIMAL(10,2) DEFAULT 0,
-  min_stock INTEGER DEFAULT 0,
-  current_stock INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
--- ② 위탁처 테이블
-CREATE TABLE consignment_locations (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT NOT NULL,
-  contact TEXT DEFAULT '',
-  address TEXT DEFAULT '',
-  notes TEXT DEFAULT '',
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- ③ 위탁 재고 테이블
-CREATE TABLE consignment_stocks (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
-  location_id UUID REFERENCES consignment_locations(id) ON DELETE CASCADE,
-  quantity INTEGER DEFAULT 0,
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(product_id, location_id)
-);
-
--- ④ 거래 이력 테이블
-CREATE TABLE transactions (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  product_id UUID REFERENCES products(id) ON DELETE SET NULL,
-  product_name TEXT DEFAULT '',
-  type TEXT NOT NULL,
-  quantity INTEGER NOT NULL,
-  location_id UUID REFERENCES consignment_locations(id) ON DELETE SET NULL,
-  location_name TEXT DEFAULT '',
-  wh_before INTEGER DEFAULT 0,
-  wh_after INTEGER DEFAULT 0,
-  cs_before INTEGER DEFAULT 0,
-  cs_after INTEGER DEFAULT 0,
-  notes TEXT DEFAULT '',
-  created_by TEXT DEFAULT '',
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- ⑤ 공개 접근 권한
-ALTER TABLE products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE consignment_locations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE consignment_stocks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public" ON products FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public" ON consignment_locations FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public" ON consignment_stocks FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public" ON transactions FOR ALL USING (true) WITH CHECK (true);`;}
 
 async function loadProducts(){const{data,error}=await S.sb.from('products').select('*').order('name');if(!error)S.products=data||[];}
 async function loadLocations(){const{data,error}=await S.sb.from('consignment_locations').select('*').eq('is_active',true).order('name');if(!error)S.locations=data||[];}
@@ -435,6 +393,14 @@ function renderTxItem(tx){
   return`<div class="tx-item"><div class="tx-icon ${tx.type}">${txIcon(tx.type)}</div><div class="tx-info"><div class="tx-name">${tx.product_name||'-'}</div><div class="tx-meta">${meta}</div></div><div class="tx-qty ${tx.type}">${txQtyStr(tx)}</div></div>`;
 }
 
+// ── 제품 카드 썸네일 HTML ──
+function pThumbHtml(p){
+  if(p.image_url){
+    return`<img class="p-thumb" src="${p.image_url}" onerror="this.outerHTML='<div class=\\'p-thumb-placeholder\\' style=\\'background:${p.type==='oem'?'var(--warning-l)':'var(--primary-l)\\'}'>${p.type==='oem'?'🔄':'🏭'}</div>'" loading="lazy">`;
+  }
+  return`<div class="p-thumb-placeholder" style="background:${p.type==='oem'?'var(--warning-l)':'var(--primary-l)'}">${p.type==='oem'?'🔄':'🏭'}</div>`;
+}
+
 function renderDash(){
   const totalCS=S.cstocks.reduce((a,s)=>a+s.quantity,0);
   const totalWH=S.products.reduce((a,p)=>a+p.current_stock,0);
@@ -463,23 +429,24 @@ function renderDash(){
 }
 
 function renderProducts(){
-  const cats=[...new Set(S.products.map(p=>p.category).filter(Boolean))];
+  const cats=getCategories();
+  const labels=getTypeLabels();
   const filtered=filteredProducts();
   document.getElementById('content').innerHTML=`
     <div class="search-bar"><input type="search" placeholder="제품명 또는 코드 검색..." value="${S.pSearch}" oninput="S.pSearch=this.value;renderProducts()"></div>
     <div class="filter-row">
       <div class="chip ${S.pFilter==='all'?'active':''}" onclick="setPF('all')">전체</div>
       <div class="chip ${S.pFilter==='low'?'active':''}" onclick="setPF('low')">⚠️ 부족</div>
-      <div class="chip ${S.pFilter==='own'?'active':''}" onclick="setPF('own')">자체생산</div>
-      <div class="chip ${S.pFilter==='oem'?'active':''}" onclick="setPF('oem')">OEM</div>
+      <div class="chip ${S.pFilter==='own'?'active':''}" onclick="setPF('own')">${labels.own}</div>
+      <div class="chip ${S.pFilter==='oem'?'active':''}" onclick="setPF('oem')">${labels.oem}</div>
       ${cats.map(c=>`<div class="chip ${S.pFilter===c?'active':''}" onclick="setPF('${c}')">${c}</div>`).join('')}
     </div>
     ${filtered.length===0?`<div class="empty"><div class="icon">📦</div><p>제품이 없습니다<br>+ 버튼으로 추가하세요</p></div>`:filtered.map(p=>{
       const total=getTotalStock(p);const cs=total-p.current_stock;const isLow=total<=p.min_stock&&p.min_stock>0;
       return`<div class="product-card" onclick="showProductDetail('${p.id}')">
-        <div class="p-icon" style="background:${p.type==='oem'?'var(--warning-l)':'var(--primary-l)'}">${p.type==='oem'?'🔄':'🏭'}</div>
+        ${pThumbHtml(p)}
         <div class="p-info"><div class="p-name">${p.name}</div><div class="p-code">${p.code}</div>
-          <div class="p-badges"><span class="badge ${p.type==='oem'?'badge-warning':'badge-blue'}">${p.type==='oem'?'OEM':'자체'}</span>${p.category?`<span class="badge badge-gray">${p.category}</span>`:''}${cs>0?`<span class="badge badge-purple">위탁 ${cs}</span>`:''}</div>
+          <div class="p-badges"><span class="badge ${p.type==='oem'?'badge-warning':'badge-blue'}">${p.type==='oem'?labels.oem:labels.own}</span>${p.category?`<span class="badge badge-gray">${p.category}</span>`:''}${cs>0?`<span class="badge badge-purple">위탁 ${cs}</span>`:''}</div>
         </div>
         <div class="p-stock"><div class="p-stock-num ${isLow?'low':'ok'}">${total}</div><div class="p-stock-label">창고 ${p.current_stock}</div><div class="p-stock-label">최소 ${p.min_stock}</div></div>
       </div>`;
@@ -504,12 +471,16 @@ function showProductDetail(id){
   const totalCS=cs.reduce((a,s)=>a+s.quantity,0);
   const total=p.current_stock+totalCS;const isLow=total<=p.min_stock&&p.min_stock>0;
   const csRows=S.locations.map(loc=>{const s=cs.find(s=>s.location_id===loc.id);const qty=s?s.quantity:0;return`<div class="loc-stock-row"><span class="loc-stock-name">🚚 ${loc.name}</span><span class="loc-stock-qty" style="color:var(--purple)">${qty}개</span></div>`;}).join('');
+  const labels=getTypeLabels();
+  const heroHtml=p.image_url
+    ?`<img class="detail-hero-img" src="${p.image_url}" onerror="this.style.display='none'">`
+    :`<div class="detail-hero-placeholder">${p.type==='oem'?'🔄':'🏭'}</div>`;
   showModal('제품 상세',`
+    ${heroHtml}
     <div style="text-align:center;margin-bottom:16px;">
-      <div style="font-size:44px;">${p.type==='oem'?'🔄':'🏭'}</div>
-      <h2 style="font-size:19px;font-weight:800;margin-top:6px;">${p.name}</h2>
+      <h2 style="font-size:19px;font-weight:800;">${p.name}</h2>
       <div style="font-size:13px;color:var(--muted);">${p.code}</div>
-      <div style="margin-top:6px;"><span class="badge ${p.type==='oem'?'badge-warning':'badge-blue'}">${p.type==='oem'?'OEM':'자체생산'}</span>${p.category?` <span class="badge badge-gray">${p.category}</span>`:''}</div>
+      <div style="margin-top:6px;"><span class="badge ${p.type==='oem'?'badge-warning':'badge-blue'}">${p.type==='oem'?labels.oem:labels.own}</span>${p.category?` <span class="badge badge-gray">${p.category}</span>`:''}</div>
     </div>
     <div class="stock-summary" style="background:${isLow?'var(--danger-l)':'var(--success-l)'}">
       <div class="stock-big" style="color:${isLow?'var(--danger)':'var(--success)'}">${total}</div>
@@ -523,7 +494,6 @@ function showProductDetail(id){
     <div class="detail-row"><span class="detail-label">단가</span><span class="detail-value">${p.unit_price?'₩'+Number(p.unit_price).toLocaleString():'-'}</span></div>
     <div class="detail-row"><span class="detail-label">원가</span><span class="detail-value">${p.cost_price?'₩'+Number(p.cost_price).toLocaleString():'-'}</span></div>
     <div class="detail-row"><span class="detail-label">최소 재고</span><span class="detail-value">${p.min_stock}개</span></div>
-    ${p.description?`<div class="detail-row"><span class="detail-label">메모</span><span class="detail-value" style="max-width:60%">${p.description}</span></div>`:''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;">
       <button class="btn btn-success" onclick="closeModal();go('inout');selectProd('${p.id}');setTxType('in')">📥 입고</button>
       <button class="btn btn-danger" onclick="closeModal();go('inout');selectProd('${p.id}');setTxType('out')">📤 출고</button>
@@ -535,13 +505,34 @@ function showProductDetail(id){
   ]);
 }
 
+// ── 제품 폼 (사진 업로드 포함) ──
 function showProductForm(p){
-  const isEdit=!!p;const cats=[...new Set(S.products.map(x=>x.category).filter(Boolean))];
+  const isEdit=!!p;
+  const cats=getCategories();
+  const labels=getTypeLabels();
+  S.pendingImageFile=null;
+  S.pendingImagePreview=p?.image_url||null;
+  const imgContent=p?.image_url
+    ?`<img src="${p.image_url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.outerHTML='<span class=\\'ph-icon\\'>📷</span>'">`
+    :`<span class="ph-icon">📷</span>`;
   showModal(isEdit?'제품 수정':'제품 추가',`
+    <div class="photo-upload-area" onclick="document.getElementById('pf-img-input').click()">
+      <div class="photo-upload-box" id="pf-img-box">${imgContent}</div>
+      <div class="photo-upload-label">📷 대표 사진 ${p?.image_url?'변경':'추가'}</div>
+      <input type="file" id="pf-img-input" accept="image/*" style="display:none" onchange="previewProductImage(this)">
+    </div>
     <div class="fg"><label>제품명 *</label><input id="pf-name" value="${p?.name||''}" placeholder="제품 이름"></div>
     <div class="fg"><label>제품 코드/SKU *</label><input id="pf-code" value="${p?.code||''}" placeholder="예: SKU-001"></div>
-    <div class="fg"><label>카테고리</label><input id="pf-cat" value="${p?.category||''}" placeholder="예: 음료, 포장재" list="cat-list"><datalist id="cat-list">${cats.map(c=>`<option value="${c}">`).join('')}</datalist></div>
-    <div class="fg"><label>생산 유형</label><select id="pf-type"><option value="own" ${p?.type!=='oem'?'selected':''}>자체생산</option><option value="oem" ${p?.type==='oem'?'selected':''}>OEM</option></select></div>
+    <div class="fg"><label>카테고리</label>
+      <input id="pf-cat" value="${p?.category||''}" placeholder="카테고리 선택 또는 입력" list="cat-list">
+      <datalist id="cat-list">${cats.map(c=>`<option value="${c}">`).join('')}</datalist>
+    </div>
+    <div class="fg"><label>생산 유형</label>
+      <select id="pf-type">
+        <option value="own" ${p?.type!=='oem'?'selected':''}>${labels.own}</option>
+        <option value="oem" ${p?.type==='oem'?'selected':''}>${labels.oem}</option>
+      </select>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div class="fg"><label>단가 (₩)</label><input type="number" id="pf-up" value="${p?.unit_price||''}" min="0" placeholder="0"></div>
       <div class="fg"><label>원가 (₩)</label><input type="number" id="pf-cp" value="${p?.cost_price||''}" min="0" placeholder="0"></div>
@@ -550,18 +541,53 @@ function showProductForm(p){
       <div class="fg"><label>현재 재고${isEdit?' (이력으로 변경)':''}</label><input type="number" id="pf-stock" value="${p?.current_stock||0}" min="0" ${isEdit?'disabled':''}></div>
       <div class="fg"><label>최소 재고 (알림)</label><input type="number" id="pf-min" value="${p?.min_stock||0}" min="0"></div>
     </div>
-    <div class="fg"><label>메모</label><textarea id="pf-desc">${p?.description||''}</textarea></div>
+    <div class="fg"><label>메모</label><textarea id="pf-desc">${p?.notes||''}</textarea></div>
   `,[{label:'취소',cls:'btn-secondary',fn:'closeModal()'},{label:isEdit?'저장':'추가',cls:'btn-primary',fn:`submitProduct('${p?.id||''}')`}]);
 }
+
+function previewProductImage(input){
+  const file=input.files[0];if(!file)return;
+  S.pendingImageFile=file;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    S.pendingImagePreview=e.target.result;
+    const box=document.getElementById('pf-img-box');
+    if(box)box.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function uploadProductImage(file,productCode){
+  const ext=file.name.split('.').pop().toLowerCase()||'jpg';
+  const fileName=`${productCode.replace(/[^a-zA-Z0-9]/g,'_')}_${Date.now()}.${ext}`;
+  const{error}=await S.sb.storage.from('product-images').upload(fileName,file,{upsert:true,contentType:file.type});
+  if(error)throw error;
+  const{data}=S.sb.storage.from('product-images').getPublicUrl(fileName);
+  return data.publicUrl;
+}
+
 async function submitProduct(id){
   const name=document.getElementById('pf-name').value.trim(),code=document.getElementById('pf-code').value.trim();
   if(!name||!code){toast('제품명과 코드는 필수입니다','e');return;}
-  const prod={id:id||undefined,name,code,category:document.getElementById('pf-cat').value.trim(),type:document.getElementById('pf-type').value,unit_price:parseFloat(document.getElementById('pf-up').value)||0,cost_price:parseFloat(document.getElementById('pf-cp').value)||0,current_stock:parseInt(document.getElementById('pf-stock').value)||0,min_stock:parseInt(document.getElementById('pf-min').value)||0};
+  const catVal=document.getElementById('pf-cat').value.trim();
+  if(catVal)addCategoryToList(catVal);
+  const prod={id:id||undefined,name,code,category:catVal,type:document.getElementById('pf-type').value,unit_price:parseFloat(document.getElementById('pf-up').value)||0,cost_price:parseFloat(document.getElementById('pf-cp').value)||0,current_stock:parseInt(document.getElementById('pf-stock').value)||0,min_stock:parseInt(document.getElementById('pf-min').value)||0};
   if(!id)delete prod.id;
+  // 사진 업로드
+  if(S.pendingImageFile){
+    try{
+      toast('사진 업로드 중...','i');
+      const url=await uploadProductImage(S.pendingImageFile,code);
+      prod.image_url=url;
+    }catch(e){
+      toast('사진 업로드 실패: '+e.message+' (Storage 버킷 설정 확인)','e');
+    }
+  }
   try{
     const now=new Date().toISOString();
     if(id){const{id:_,created_at,...u}=prod;u.updated_at=now;const{error}=await S.sb.from('products').update(u).eq('id',id);if(error)throw error;}
     else{const{error}=await S.sb.from('products').insert({...prod,created_at:now,updated_at:now});if(error)throw error;}
+    S.pendingImageFile=null;
     await loadProducts();closeModal();renderProducts();toast(id?'제품이 수정되었습니다':'제품이 추가되었습니다','s');
   }catch(e){toast('오류: '+e.message,'e');}
 }
@@ -708,8 +734,7 @@ async function submitLocation(id){
 }
 async function confirmDeleteLocation(id){
   const loc=S.locations.find(l=>l.id===id);
-  if(!confirm(`"${loc?.name}"을 삭제하시겠습니까?
-위탁 재고 정보도 모두 삭제됩니다.`))return;
+  if(!confirm(`"${loc?.name}"을 삭제하시겠습니까?\n위탁 재고 정보도 모두 삭제됩니다.`))return;
   try{const{error}=await S.sb.from('consignment_locations').delete().eq('id',id);if(error)throw error;await loadLocations();await loadCstocks();closeModal();renderConsign();toast('위탁처가 삭제되었습니다','s');}catch(e){toast('오류: '+e.message,'e');}
 }
 
@@ -736,7 +761,10 @@ function renderHistory(){
   `;
 }
 
+// ── 설정 ──
 function openSettings(){
+  const labels=getTypeLabels();
+  const cats=getCategories();
   showModal('설정',`
     <div class="set-section">
       <h3>내 계정</h3>
@@ -746,6 +774,37 @@ function openSettings(){
       <div class="fg" style="margin-top:12px;"><label>이름 변경</label><input id="new-name" value="${S.cfg.username}" style="font-size:16px;"></div>
       <button class="btn btn-outline btn-sm" onclick="changeName()">이름 변경</button>
     </div>
+
+    <div class="set-section">
+      <h3>카테고리 관리</h3>
+      <div class="tag-list" id="cat-tag-list">
+        ${cats.length===0?'<div style="font-size:13px;color:var(--muted);">카테고리가 없습니다</div>':cats.map(c=>`<div class="tag-item">${c}<button class="tag-del" onclick="deleteCategorySetting('${c}')">×</button></div>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;">
+        <input id="new-cat-input" placeholder="새 카테고리" style="flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;">
+        <button onclick="addCategorySetting()" style="padding:10px 16px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">추가</button>
+      </div>
+    </div>
+
+    <div class="set-section">
+      <h3>생산 유형 이름</h3>
+      <div class="fg"><label>자체생산 표시 이름</label><input id="type-own-input" value="${labels.own}" placeholder="자체생산"></div>
+      <div class="fg" style="margin-bottom:8px;"><label>OEM 표시 이름</label><input id="type-oem-input" value="${labels.oem}" placeholder="OEM"></div>
+      <button class="btn btn-outline btn-sm" onclick="saveTypeLabelChanges()">저장</button>
+    </div>
+
+    <div class="set-section">
+      <h3>사진 기능 설정</h3>
+      <div class="infobox" style="margin-bottom:0;">
+        대표 사진 기능을 사용하려면 Supabase에서 아래 설정이 필요합니다:<br><br>
+        <strong>1. Storage 버킷 생성</strong><br>
+        Storage → New bucket → 이름: <code>product-images</code> → Public 체크<br><br>
+        <strong>2. products 테이블에 컬럼 추가</strong><br>
+        SQL Editor에서 실행:<br>
+        <code>ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT '';</code>
+      </div>
+    </div>
+
     <div class="set-section">
       <h3>데이터</h3>
       <div class="set-item" onclick="refreshAll()" style="color:var(--primary)"><div class="set-label">🔄 데이터 새로고침</div><div>→</div></div>
@@ -754,9 +813,42 @@ function openSettings(){
     <button class="btn btn-danger" onclick="resetApp()">로그아웃</button>
   `,[]);
 }
+
+window.addCategorySetting=function(){
+  const input=document.getElementById('new-cat-input');
+  const val=input?.value.trim();
+  if(!val){toast('카테고리 이름을 입력하세요','e');return;}
+  const cats=getCategories();
+  if(cats.includes(val)){toast('이미 있는 카테고리입니다','e');return;}
+  saveCategories([...cats,val]);
+  input.value='';
+  refreshCategoryTagList();
+  toast('카테고리 추가됨','s');
+};
+
+window.deleteCategorySetting=function(name){
+  const cats=getCategories().filter(c=>c!==name);
+  saveCategories(cats);
+  refreshCategoryTagList();
+};
+
+function refreshCategoryTagList(){
+  const cats=getCategories();
+  const el=document.getElementById('cat-tag-list');
+  if(!el)return;
+  el.innerHTML=cats.length===0?'<div style="font-size:13px;color:var(--muted);">카테고리가 없습니다</div>':cats.map(c=>`<div class="tag-item">${c}<button class="tag-del" onclick="deleteCategorySetting('${c}')">×</button></div>`).join('');
+}
+
+window.saveTypeLabelChanges=function(){
+  const own=document.getElementById('type-own-input')?.value.trim()||'자체생산';
+  const oem=document.getElementById('type-oem-input')?.value.trim()||'OEM';
+  saveTypeLabels({own,oem});
+  toast('생산 유형 이름이 저장되었습니다','s');
+};
+
 function changeName(){const n=document.getElementById('new-name').value.trim();if(!n)return;S.cfg.username=n;localStorage.setItem('inv_username',n);closeModal();toast('이름이 변경되었습니다','s');}
 async function refreshAll(){toast('새로고침 중...','i');await loadAll();closeModal();go(S.tab);toast('업데이트 완료','s');}
-function resetApp(){if(!confirm('앱을 초기화하시겠습니까?\n데이터는 Supabase에 유지됩니다.'))return;localStorage.removeItem('inv_cfg');location.reload();}
+function resetApp(){if(!confirm('앱을 초기화하시겠습니까?\nDB 데이터는 유지됩니다.'))return;localStorage.removeItem('inv_username');location.reload();}
 
 function showModal(title,body,btns=[]){
   document.getElementById('modal-title').textContent=title;
