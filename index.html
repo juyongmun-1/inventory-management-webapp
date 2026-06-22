@@ -281,9 +281,10 @@ const SB_KEY='sb_publishable_uE-oA2O-lifSx7I9YcghdQ_v7I2wCRv';
 const S={
   tab:'dash',products:[],locations:[],cstocks:[],transactions:[],
   salesOrders:[],salesOrderItems:[],purchaseOrders:[],purchaseOrderItems:[],
+  warehouses:[],warehouseStocks:[],
   cfg:null,sb:null,
   pSearch:'',pFilter:'all',
-  txType:'in',txProduct:null,txLocation:null,
+  txType:'in',txProduct:null,txLocation:null,txWarehouse:null,txToWarehouse:null,
   histFilter:'all',histLocFilter:'all',
   salesFilter:'all',purchaseFilter:'all',
   pendingItems:[],pendingImageFile:null,
@@ -330,11 +331,13 @@ async function finishSetup(){
   }catch(e){toast('오류: '+e.message,'e');}
 }
 
-async function loadAll(){await Promise.all([loadProducts(),loadLocations(),loadCstocks(),loadTx(),loadSalesOrders(),loadPurchaseOrders()]);}
+async function loadAll(){await Promise.all([loadProducts(),loadLocations(),loadCstocks(),loadTx(),loadSalesOrders(),loadPurchaseOrders(),loadWarehouses(),loadWarehouseStocks()]);}
 async function loadProducts(){const{data,e}=await S.sb.from('products').select('*').order('name');if(!e)S.products=data||[];}
 async function loadLocations(){const{data,e}=await S.sb.from('consignment_locations').select('*').eq('is_active',true).order('name');if(!e)S.locations=data||[];}
 async function loadCstocks(){const{data,e}=await S.sb.from('consignment_stocks').select('*');if(!e)S.cstocks=data||[];}
 async function loadTx(){const{data,e}=await S.sb.from('transactions').select('*').order('created_at',{ascending:false}).limit(300);if(!e)S.transactions=data||[];}
+async function loadWarehouses(){const{data,e}=await S.sb.from('warehouses').select('*').eq('is_active',true).order('created_at');if(!e)S.warehouses=data||[];}
+async function loadWarehouseStocks(){const{data,e}=await S.sb.from('warehouse_stocks').select('*');if(!e)S.warehouseStocks=data||[];}
 
 async function loadSalesOrders(){
   const{data,error}=await S.sb.from('sales_orders').select('*').order('created_at',{ascending:false}).limit(200);
@@ -353,6 +356,7 @@ function subscribeRT(){
   S.sb.channel('inv_rt')
     .on('postgres_changes',{event:'*',schema:'public',table:'products'},()=>loadProducts().then(()=>{if(S.tab==='dash')renderDash();if(S.tab==='products')renderProducts();}))
     .on('postgres_changes',{event:'*',schema:'public',table:'consignment_stocks'},()=>loadCstocks().then(()=>{if(S.tab==='dash')renderDash();if(S.tab==='products')renderProducts();}))
+    .on('postgres_changes',{event:'*',schema:'public',table:'warehouse_stocks'},()=>loadWarehouseStocks().then(()=>{if(S.tab==='dash')renderDash();if(S.tab==='products')renderProducts();if(S.tab==='warehouses')renderWarehouses();}))
     .on('postgres_changes',{event:'*',schema:'public',table:'transactions'},()=>loadTx().then(()=>{if(S.tab==='dash')renderDash();}))
     .on('postgres_changes',{event:'*',schema:'public',table:'sales_orders'},()=>loadSalesOrders().then(()=>{if(S.tab==='dash')renderDash();if(S.tab==='sales')renderSales();}))
     .on('postgres_changes',{event:'*',schema:'public',table:'purchase_orders'},()=>loadPurchaseOrders().then(()=>{if(S.tab==='purchase')renderPurchase();}))
@@ -374,34 +378,74 @@ function go(tab){
     case 'inout':renderInOut();break;
     case 'consign':renderConsign();break;
     case 'history':renderHistory();break;
+    case 'warehouses':renderWarehouses();break;
   }
 }
 
 function setHdr(tab){
-  const titles={dash:'홈',products:'제품 관리',sales:'판매서',purchase:'발주서',more:'더보기',inout:'입출고',consign:'위탁처',history:'거래 이력'};
+  const titles={dash:'홈',products:'제품 관리',sales:'판매서',purchase:'발주서',more:'더보기',inout:'입출고',consign:'위탁처',history:'거래 이력',warehouses:'창고 관리'};
   document.getElementById('hdr-title').textContent=titles[tab]||'';
   const L=document.getElementById('hdr-left');
   const R=document.getElementById('hdr-right');
-  const isMain=['dash','products','sales','purchase','more'].includes(tab);
+  const isMain=['dash','products','sales','consign','more'].includes(tab);
   L.innerHTML=isMain?'':'<button class="icon-btn" onclick="go(\'more\')">‹</button>';
   if(tab==='products')R.innerHTML='<button class="icon-btn primary" onclick="showProductForm(null)">+</button>';
   else if(tab==='sales')R.innerHTML='<button class="icon-btn primary" onclick="showSalesOrderForm(null)">+</button>';
   else if(tab==='purchase')R.innerHTML='<button class="icon-btn primary" onclick="showPurchaseOrderForm(null)">+</button>';
   else if(tab==='consign')R.innerHTML='<button class="icon-btn primary" onclick="showLocationForm(null)">+</button>';
-  else if(tab==='more')R.innerHTML='';
+  else if(tab==='warehouses')R.innerHTML='<button class="icon-btn primary" onclick="showWarehouseForm(null)">+</button>';
   else R.innerHTML='';
 }
 
 /* ── 재고 헬퍼 ── */
 function getCS(pid,lid){return S.cstocks.find(s=>s.product_id===pid&&s.location_id===lid);}
-function getTotalStock(p){return p.current_stock+S.cstocks.filter(s=>s.product_id===p.id).reduce((a,s)=>a+s.quantity,0);}
+function getWS(pid,wid){return S.warehouseStocks.find(s=>s.product_id===pid&&s.warehouse_id===wid);}
+function getTotalWarehouseStock(pid){return S.warehouseStocks.filter(s=>s.product_id===pid).reduce((a,s)=>a+s.quantity,0);}
+function getTotalStock(p){
+  const ws=S.warehouseStocks.filter(s=>s.product_id===p.id);
+  const whTotal=ws.length>0?ws.reduce((a,s)=>a+s.quantity,0):p.current_stock;
+  return whTotal+S.cstocks.filter(s=>s.product_id===p.id).reduce((a,s)=>a+s.quantity,0);
+}
+function getDefaultWarehouse(){return S.warehouses.find(w=>w.is_default)||S.warehouses[0]||null;}
+
+async function upsertWS(pid,wid,qty){
+  const ex=getWS(pid,wid);const now=new Date().toISOString();
+  if(ex){await S.sb.from('warehouse_stocks').update({quantity:qty,updated_at:now}).eq('id',ex.id);ex.quantity=qty;}
+  else{const{data:ins}=await S.sb.from('warehouse_stocks').insert({product_id:pid,warehouse_id:wid,quantity:qty,updated_at:now}).select().single();if(ins)S.warehouseStocks.push(ins);}
+  // sync current_stock = sum of all warehouse_stocks
+  const total=getTotalWarehouseStock(pid);
+  await S.sb.from('products').update({current_stock:total,updated_at:now}).eq('id',pid);
+  const p=S.products.find(x=>x.id===pid);if(p)p.current_stock=total;
+}
 
 async function recordTx(data){
   const p=S.products.find(x=>x.id===data.product_id);
   if(!p)throw new Error('제품을 찾을 수 없습니다');
-  const wh0=p.current_stock;let wh1=wh0,cs0=0,cs1=0;
-  if(data.location_id){const cs=getCS(p.id,data.location_id);cs0=cs?cs.quantity:0;cs1=cs0;}
   const q=data.quantity;
+  const now=new Date().toISOString();
+
+  // warehouse stock before
+  const wid=data.warehouse_id;
+  const ws=wid?getWS(p.id,wid):null;
+  const ws0=ws?ws.quantity:0;
+
+  // for move type
+  if(data.type==='move'){
+    const fwid=data.from_warehouse_id,twid=data.to_warehouse_id;
+    if(!fwid||!twid)throw new Error('출발/도착 창고를 선택하세요');
+    const fw=getWS(p.id,fwid);const fw0=fw?fw.quantity:0;
+    if(fw0<q)throw new Error(`출발 창고 재고 부족 (현재 ${fw0}개)`);
+    const tw=getWS(p.id,twid);const tw0=tw?tw.quantity:0;
+    const fwName=S.warehouses.find(w=>w.id===fwid)?.name||'';
+    const twName=S.warehouses.find(w=>w.id===twid)?.name||'';
+    const{error:te}=await S.sb.from('transactions').insert({product_id:p.id,product_name:p.name,type:'move',quantity:q,warehouse_id:fwid,warehouse_name:fwName,to_warehouse_id:twid,to_warehouse_name:twName,wh_before:fw0,wh_after:fw0-q,notes:data.notes||'',created_by:S.cfg.username,created_at:now});
+    if(te)throw te;
+    await upsertWS(p.id,fwid,fw0-q);await upsertWS(p.id,twid,tw0+q);
+    return;
+  }
+
+  let wh0=ws0,wh1=ws0,cs0=0,cs1=0;
+  if(data.location_id){const cs=getCS(p.id,data.location_id);cs0=cs?cs.quantity:0;cs1=cs0;}
   switch(data.type){
     case 'in':wh1=wh0+q;break;
     case 'out':wh1=wh0-q;if(wh1<0)throw new Error(`창고 재고 부족 (현재 ${wh0}개)`);break;
@@ -412,13 +456,15 @@ async function recordTx(data){
     case 'consignment_adj':cs1=q;break;
   }
   const loc=S.locations.find(l=>l.id===data.location_id);
-  const{error:te}=await S.sb.from('transactions').insert({product_id:p.id,product_name:p.name,type:data.type,quantity:q,location_id:data.location_id||null,location_name:loc?loc.name:'',wh_before:wh0,wh_after:wh1,cs_before:cs0,cs_after:cs1,notes:data.notes||'',created_by:S.cfg.username,created_at:new Date().toISOString()});
+  const whName=wid?S.warehouses.find(w=>w.id===wid)?.name||'':'';
+  const{error:te}=await S.sb.from('transactions').insert({product_id:p.id,product_name:p.name,type:data.type,quantity:q,warehouse_id:wid||null,warehouse_name:whName,location_id:data.location_id||null,location_name:loc?loc.name:'',wh_before:wh0,wh_after:wh1,cs_before:cs0,cs_after:cs1,notes:data.notes||'',created_by:S.cfg.username,created_at:now});
   if(te)throw te;
-  if(wh1!==wh0){await S.sb.from('products').update({current_stock:wh1,updated_at:new Date().toISOString()}).eq('id',p.id);p.current_stock=wh1;}
+  if(wid&&wh1!==wh0)await upsertWS(p.id,wid,wh1);
+  else if(!wid&&wh1!==wh0){await S.sb.from('products').update({current_stock:wh1,updated_at:now}).eq('id',p.id);p.current_stock=wh1;}
   if(data.location_id&&cs1!==cs0){
     const ex=getCS(p.id,data.location_id);
-    if(ex){await S.sb.from('consignment_stocks').update({quantity:cs1,updated_at:new Date().toISOString()}).eq('id',ex.id);ex.quantity=cs1;}
-    else{const{data:ins}=await S.sb.from('consignment_stocks').insert({product_id:p.id,location_id:data.location_id,quantity:cs1,updated_at:new Date().toISOString()}).select().single();if(ins)S.cstocks.push(ins);}
+    if(ex){await S.sb.from('consignment_stocks').update({quantity:cs1,updated_at:now}).eq('id',ex.id);ex.quantity=cs1;}
+    else{const{data:ins}=await S.sb.from('consignment_stocks').insert({product_id:p.id,location_id:data.location_id,quantity:cs1,updated_at:now}).select().single();if(ins)S.cstocks.push(ins);}
   }
 }
 
@@ -791,10 +837,13 @@ function showProductDetail(id){
   const p=S.products.find(x=>x.id===id);if(!p)return;
   const cs=S.cstocks.filter(s=>s.product_id===id);
   const totalCS=cs.reduce((a,s)=>a+s.quantity,0);
-  const total=p.current_stock+totalCS;const isLow=total<=p.min_stock&&p.min_stock>0;
+  const total=getTotalStock(p);const isLow=total<=p.min_stock&&p.min_stock>0;
   const labels=getTypeLabels();
   const heroHtml=p.image_url?`<img class="detail-hero-img" src="${p.image_url}" onerror="this.style.display='none'">`:`<div class="detail-hero-ph">${p.type==='oem'?'🔄':'🏭'}</div>`;
-  const csRows=S.locations.map(loc=>{const s=cs.find(s=>s.location_id===loc.id);return`<div class="loc-stock-row"><span>${loc.name}</span><span style="font-weight:700;color:var(--purple)">${s?s.quantity:0}개</span></div>`;}).join('');
+  const wsRows=S.warehouses.length>0
+    ?S.warehouses.map(w=>{const s=getWS(p.id,w.id);return`<div class="loc-stock-row"><span>🏭 ${w.name}${w.is_default?' ⭐':''}</span><span style="font-weight:700;color:var(--primary)">${s?s.quantity:0}개</span></div>`;}).join('')
+    :`<div class="loc-stock-row"><span>🏭 창고</span><span style="font-weight:700;color:var(--primary)">${p.current_stock}개</span></div>`;
+  const csRows=S.locations.map(loc=>{const s=cs.find(s=>s.location_id===loc.id);return`<div class="loc-stock-row"><span>🚚 ${loc.name}</span><span style="font-weight:700;color:var(--purple)">${s?s.quantity:0}개</span></div>`;}).join('');
   showModal('제품 상세',`
     ${heroHtml}
     <div style="text-align:center;margin-bottom:16px;"><h2 style="font-size:19px;font-weight:800;">${p.name}</h2><div style="font-size:13px;color:var(--muted);">${p.code}</div><div style="margin-top:6px;"><span class="badge ${p.type==='oem'?'badge-warning':'badge-primary'}">${p.type==='oem'?labels.oem:labels.own}</span>${p.category?` <span class="badge badge-gray">${p.category}</span>`:''}</div></div>
@@ -803,7 +852,7 @@ function showProductDetail(id){
       <div style="font-size:12px;color:var(--muted);">전체 재고</div>${isLow?`<div style="font-size:12px;color:var(--danger);margin-top:4px;">⚠️ 최소 ${p.min_stock}개 이하</div>`:''}
     </div>
     <div class="row-list" style="margin:0 0 12px;">
-      <div class="row-item"><span>🏭 본사 창고</span><span style="font-weight:700;color:var(--primary)">${p.current_stock}개</span></div>
+      ${wsRows}
       ${csRows}
     </div>
     <div class="row-list" style="margin:0 0 14px;">
@@ -887,17 +936,46 @@ async function confirmDeleteProduct(id){
 }
 
 /* ── 입출고 ── */
-const TX_TYPES=[{id:'in',icon:'📥',label:'입고',sel:'sel-in',group:'wh'},{id:'out',icon:'📤',label:'출고',sel:'sel-out',group:'wh'},{id:'warehouse_adj',icon:'📊',label:'창고실사',sel:'sel-wadj',group:'wh'},{id:'send_consignment',icon:'🚚',label:'위탁발송',sel:'sel-send',group:'cs'},{id:'return_consignment',icon:'🔙',label:'위탁회수',sel:'sel-return',group:'cs'},{id:'consignment_sale',icon:'🛍️',label:'위탁판매',sel:'sel-csale',group:'cs'},{id:'consignment_adj',icon:'📊',label:'위탁실사',sel:'sel-cadj',group:'cs'}];
+const TX_TYPES=[
+  {id:'in',icon:'📥',label:'입고',sel:'sel-in',group:'wh'},
+  {id:'out',icon:'📤',label:'출고',sel:'sel-out',group:'wh'},
+  {id:'move',icon:'🔀',label:'이동',sel:'sel-move',group:'wh'},
+  {id:'warehouse_adj',icon:'📊',label:'창고실사',sel:'sel-wadj',group:'wh'},
+  {id:'send_consignment',icon:'🚚',label:'위탁발송',sel:'sel-send',group:'cs'},
+  {id:'return_consignment',icon:'🔙',label:'위탁회수',sel:'sel-return',group:'cs'},
+  {id:'consignment_sale',icon:'🛍️',label:'위탁판매',sel:'sel-csale',group:'cs'},
+  {id:'consignment_adj',icon:'📊',label:'위탁실사',sel:'sel-cadj',group:'cs'},
+];
 const needsLoc=t=>['send_consignment','return_consignment','consignment_sale','consignment_adj'].includes(t);
-const TX_DESC={in:'📥 <b>입고</b>: 외부에서 창고로 들어옵니다',out:'📤 <b>출고</b>: 창고에서 나갑니다',warehouse_adj:'📊 <b>창고 실사</b>: 실제 수량으로 수정합니다',send_consignment:'🚚 <b>위탁 발송</b>: 창고 → 위탁처로 이동합니다',return_consignment:'🔙 <b>위탁 회수</b>: 위탁처 → 창고로 돌아옵니다',consignment_sale:'🛍️ <b>위탁 판매</b>: 위탁처에서 판매된 수량입니다',consignment_adj:'📊 <b>위탁 실사</b>: 위탁처 실제 수량으로 수정합니다'};
+const needsWH=t=>['in','out','warehouse_adj','send_consignment','return_consignment'].includes(t);
+const TX_DESC={
+  in:'📥 <b>입고</b>: 외부에서 선택한 창고로 들어옵니다',
+  out:'📤 <b>출고</b>: 선택한 창고에서 나갑니다',
+  move:'🔀 <b>창고 이동</b>: 창고 간 재고를 이동합니다',
+  warehouse_adj:'📊 <b>창고 실사</b>: 선택한 창고의 실제 수량으로 수정합니다',
+  send_consignment:'🚚 <b>위탁 발송</b>: 창고 → 위탁처로 이동합니다',
+  return_consignment:'🔙 <b>위탁 회수</b>: 위탁처 → 창고로 돌아옵니다',
+  consignment_sale:'🛍️ <b>위탁 판매</b>: 위탁처에서 판매된 수량입니다',
+  consignment_adj:'📊 <b>위탁 실사</b>: 위탁처 실제 수량으로 수정합니다',
+};
+
+function whStockInfo(pid,wid){const ws=getWS(pid,wid);return ws?ws.quantity:0;}
 
 function renderInOut(){
   const type=S.txType;const tt=TX_TYPES.find(t=>t.id===type);
   const whTypes=TX_TYPES.filter(t=>t.group==='wh');const csTypes=TX_TYPES.filter(t=>t.group==='cs');
-  const isAdj=type==='warehouse_adj'||type==='consignment_adj';
+  const isMove=type==='move';const isAdj=type==='warehouse_adj'||type==='consignment_adj';
+  const hasWarehouses=S.warehouses.length>0;
   let locInfo='';
   if(S.txProduct&&S.txLocation&&needsLoc(type)){const cs=getCS(S.txProduct.id,S.txLocation.id);locInfo=`<div style="font-size:12px;color:var(--muted);margin-top:4px;">위탁 재고: <strong>${cs?cs.quantity:0}개</strong></div>`;}
-  const btnCls=type==='in'||type==='return_consignment'?'btn-success':type==='out'||type==='consignment_sale'?'btn-danger':type==='send_consignment'?'btn-primary':'btn-secondary';
+  let whInfo='';
+  if(S.txProduct&&S.txWarehouse&&!isMove){const q=whStockInfo(S.txProduct.id,S.txWarehouse.id);whInfo=`<div style="font-size:12px;color:var(--muted);margin-top:4px;">해당 창고 재고: <strong>${q}개</strong></div>`;}
+  const btnCls=type==='in'||type==='return_consignment'?'btn-success':type==='out'||type==='consignment_sale'?'btn-danger':type==='send_consignment'||type==='move'?'btn-primary':'btn-secondary';
+
+  const whSelector=(label,val,fn)=>hasWarehouses
+    ?`<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;">${label}</div><div class="selector-row ${val?'sel':''}" onclick="${fn}"><span class="selector-text">${val?val.name:'창고를 선택하세요'}</span><span>▼</span></div>`
+    :`<div class="infobox" style="margin-bottom:10px;">창고를 먼저 추가하세요 → <b onclick="go('warehouses')" style="cursor:pointer;">창고 관리</b></div>`;
+
   document.getElementById('content').innerHTML=`
     <div style="padding:16px;">
       <div class="card card-pad" style="margin:0 0 12px;">
@@ -909,9 +987,16 @@ function renderInOut(){
       <div class="card card-pad" style="margin:0 0 12px;">
         <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;">제품 선택</div>
         <div class="selector-row ${S.txProduct?'sel':''}" onclick="showProdSearch()"><span class="selector-text">${S.txProduct?S.txProduct.name+' ('+S.txProduct.code+')':'제품을 선택하세요'}</span><span>▼</span></div>
-        ${S.txProduct?`<div style="font-size:12px;color:var(--muted);margin-top:-8px;margin-bottom:10px;">창고 재고: <strong>${S.txProduct.current_stock}개</strong></div>`:''}
-        ${needsLoc(type)?`<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;">위탁처 선택</div><div class="selector-row ${S.txLocation?'sel':''}" onclick="showLocSearch()"><span class="selector-text">${S.txLocation?S.txLocation.name:'위탁처를 선택하세요'}</span><span>▼</span></div>${locInfo}`:''}
-        <div class="fg"><label>${isAdj?'실제 수량':'수량'}</label><input type="number" id="tx-qty" placeholder="0" min="0" style="font-size:24px;font-weight:800;text-align:center;"></div>
+        ${isMove?`
+          ${whSelector('출발 창고',S.txWarehouse,'showWhSearch("from")')}
+          ${S.txWarehouse&&S.txProduct?`<div style="font-size:12px;color:var(--muted);margin-top:4px;margin-bottom:6px;">출발 창고 재고: <strong>${whStockInfo(S.txProduct.id,S.txWarehouse.id)}개</strong></div>`:''}
+          ${whSelector('도착 창고',S.txToWarehouse,'showWhSearch("to")')}
+        `:`
+          ${needsWH(type)?whSelector('창고 선택',S.txWarehouse,'showWhSearch("single")'):''}
+          ${whInfo}
+          ${needsLoc(type)?`<div style="font-size:11px;font-weight:700;color:var(--muted);margin-top:8px;margin-bottom:6px;">위탁처 선택</div><div class="selector-row ${S.txLocation?'sel':''}" onclick="showLocSearch()"><span class="selector-text">${S.txLocation?S.txLocation.name:'위탁처를 선택하세요'}</span><span>▼</span></div>${locInfo}`:''}
+        `}
+        <div class="fg" style="margin-top:10px;"><label>${isAdj?'실제 수량':'수량'}</label><input type="number" id="tx-qty" placeholder="0" min="0" style="font-size:24px;font-weight:800;text-align:center;"></div>
         <div class="fg" style="margin-bottom:0;"><label>메모 (선택)</label><input type="text" id="tx-notes" placeholder="납품처, 이유 등"></div>
       </div>
       <button class="btn ${btnCls}" onclick="submitTx()">${tt?.icon||''} ${tt?.label||''} 처리</button>
@@ -921,34 +1006,138 @@ function renderInOut(){
   if(S.txProduct)setTimeout(()=>document.getElementById('tx-qty')?.focus(),100);
 }
 function setTxType(t){S.txType=t;renderInOut();}
-function selectProd(id){S.txProduct=S.products.find(p=>p.id===id);renderInOut();}
+function selectProd(id){S.txProduct=S.products.find(p=>p.id===id);if(!S.txWarehouse)S.txWarehouse=getDefaultWarehouse();renderInOut();}
 
 function showProdSearch(){
   showModal('제품 선택',`
     <div class="search-box" style="margin-bottom:10px;"><input type="search" class="search-input" id="ps-inp" placeholder="검색..." oninput="filterProdList(this.value)"></div>
-    <div id="ps-list">${S.products.map(p=>{const total=getTotalStock(p);return`<div class="sitem" onclick="S.txProduct=S.products.find(p=>p.id==='${p.id}');closeModal();renderInOut()"><div><div class="sitem-name">${p.name}</div><div class="sitem-sub">${p.code} · ${p.current_stock}개</div></div><span class="badge badge-primary">${total}</span></div>`;}).join('')}</div>
+    <div id="ps-list">${S.products.map(p=>{const total=getTotalStock(p);return`<div class="sitem" onclick="S.txProduct=S.products.find(p=>p.id==='${p.id}');if(!S.txWarehouse)S.txWarehouse=getDefaultWarehouse();closeModal();renderInOut()"><div><div class="sitem-name">${p.name}</div><div class="sitem-sub">${p.code} · 전체 ${total}개</div></div><span class="badge badge-primary">${total}</span></div>`;}).join('')}</div>
   `);setTimeout(()=>document.getElementById('ps-inp')?.focus(),200);
 }
 window.filterProdList=function(q){
   const f=S.products.filter(p=>!q||p.name.toLowerCase().includes(q.toLowerCase())||p.code.toLowerCase().includes(q.toLowerCase()));
   const el=document.getElementById('ps-list');if(!el)return;
-  el.innerHTML=f.map(p=>{const t=getTotalStock(p);return`<div class="sitem" onclick="S.txProduct=S.products.find(p=>p.id==='${p.id}');closeModal();renderInOut()"><div><div class="sitem-name">${p.name}</div><div class="sitem-sub">${p.code}</div></div><span class="badge badge-primary">${t}</span></div>`;}).join('');
+  el.innerHTML=f.map(p=>{const t=getTotalStock(p);return`<div class="sitem" onclick="S.txProduct=S.products.find(p=>p.id==='${p.id}');if(!S.txWarehouse)S.txWarehouse=getDefaultWarehouse();closeModal();renderInOut()"><div><div class="sitem-name">${p.name}</div><div class="sitem-sub">${p.code}</div></div><span class="badge badge-primary">${t}</span></div>`;}).join('');
 };
 function showLocSearch(){
   if(!S.locations.length){toast('위탁처를 먼저 추가하세요','e');return;}
   showModal('위탁처 선택',`<div>${S.locations.map(loc=>{const t=S.cstocks.filter(s=>s.location_id===loc.id).reduce((a,s)=>a+s.quantity,0);return`<div class="sitem" onclick="S.txLocation=S.locations.find(l=>l.id==='${loc.id}');closeModal();renderInOut()"><div><div class="sitem-name">${loc.name}</div><div class="sitem-sub">${loc.contact||'연락처 없음'} · 위탁 ${t}개</div></div><span>🚚</span></div>`;}).join('')}</div>`);
 }
+window.showWhSearch=function(mode){
+  if(!S.warehouses.length){toast('창고를 먼저 추가하세요','e');go('warehouses');return;}
+  const pid=S.txProduct?.id;
+  showModal('창고 선택',`<div>${S.warehouses.map(w=>{
+    const q=pid?whStockInfo(pid,w.id):'-';
+    return`<div class="sitem" onclick="
+      ${mode==='from'?`S.txWarehouse=S.warehouses.find(w=>w.id==='${w.id}')`:
+        mode==='to'?`S.txToWarehouse=S.warehouses.find(w=>w.id==='${w.id}')`:
+        `S.txWarehouse=S.warehouses.find(w=>w.id==='${w.id}')`};closeModal();renderInOut()">
+      <div><div class="sitem-name">${w.name}${w.is_default?' ⭐':''}</div><div class="sitem-sub">${w.notes||''}</div></div>
+      ${pid!==undefined?`<span class="badge badge-primary">${q}개</span>`:''}
+    </div>`;
+  }).join('')}</div>`);
+};
 async function submitTx(){
   if(!S.txProduct){toast('제품을 선택하세요','e');return;}
+  if(S.txType==='move'){
+    if(!S.txWarehouse||!S.txToWarehouse){toast('출발/도착 창고를 선택하세요','e');return;}
+    if(S.txWarehouse.id===S.txToWarehouse.id){toast('출발과 도착 창고가 같습니다','e');return;}
+  }
   if(needsLoc(S.txType)&&!S.txLocation){toast('위탁처를 선택하세요','e');return;}
   const qty=parseInt(document.getElementById('tx-qty').value);
-  if(isNaN(qty)||qty<0){toast('수량을 입력하세요','e');return;}
+  if(isNaN(qty)||qty<=0){toast('수량을 입력하세요','e');return;}
   const notes=document.getElementById('tx-notes')?.value||'';
   try{
-    await recordTx({product_id:S.txProduct.id,type:S.txType,quantity:qty,location_id:S.txLocation?.id,notes});
-    await loadTx();const tt=TX_TYPES.find(t=>t.id===S.txType);
-    toast(`${tt?.label||''} 처리 완료!`,'s');S.txProduct=null;S.txLocation=null;renderInOut();
+    if(S.txType==='move'){
+      await recordTx({product_id:S.txProduct.id,type:'move',quantity:qty,from_warehouse_id:S.txWarehouse.id,to_warehouse_id:S.txToWarehouse.id,notes});
+    }else{
+      await recordTx({product_id:S.txProduct.id,type:S.txType,quantity:qty,warehouse_id:S.txWarehouse?.id,location_id:S.txLocation?.id,notes});
+    }
+    await loadTx();await loadWarehouseStocks();
+    const tt=TX_TYPES.find(t=>t.id===S.txType);
+    toast(`${tt?.label||''} 처리 완료!`,'s');
+    S.txProduct=null;S.txLocation=null;S.txToWarehouse=null;
+    renderInOut();
   }catch(e){toast('오류: '+e.message,'e');}
+}
+
+/* ── 창고 관리 ── */
+function renderWarehouses(){
+  const whs=S.warehouses;
+  document.getElementById('content').innerHTML=whs.length===0
+    ?`<div class="empty"><div class="icon">🏭</div><p>창고가 없습니다<br>+ 버튼으로 추가하세요</p></div>`
+    :`<div style="height:12px;"></div><div class="row-list">${whs.map(w=>{
+        const total=S.warehouseStocks.filter(s=>s.warehouse_id===w.id).reduce((a,s)=>a+s.quantity,0);
+        return`<div class="row-item" onclick="showWarehouseDetail('${w.id}')">
+          <div><div style="font-weight:700;">${w.name}${w.is_default?' ⭐':''}</div><div style="font-size:12px;color:var(--muted);">${w.notes||'메모 없음'}</div></div>
+          <span class="row-value"><span class="badge badge-primary">${total}개</span> ›</span>
+        </div>`;
+      }).join('')}</div>`;
+}
+
+function showWarehouseDetail(id){
+  const w=S.warehouses.find(x=>x.id===id);if(!w)return;
+  const stocks=S.warehouseStocks.filter(s=>s.warehouse_id===id&&s.quantity>0);
+  const total=stocks.reduce((a,s)=>a+s.quantity,0);
+  const rows=stocks.map(s=>{const p=S.products.find(p=>p.id===s.product_id);return p?`<div class="loc-stock-row"><span>${p.name}</span><span style="font-weight:700;color:var(--primary)">${s.quantity}개</span></div>`:''}).join('');
+  showModal(w.name,`
+    <div style="text-align:center;margin-bottom:16px;">
+      <div style="font-size:36px;">🏭</div>
+      <div style="font-size:36px;font-weight:900;color:var(--primary);">${total}</div>
+      <div style="font-size:12px;color:var(--muted);">총 재고 수${w.is_default?' · 기본 창고 ⭐':''}</div>
+    </div>
+    ${w.notes?`<div style="color:var(--muted);font-size:13px;margin-bottom:12px;">${w.notes}</div>`:''}
+    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">제품별 재고</div>
+    ${stocks.length>0?`<div class="row-list" style="margin:0 0 12px;">${rows}</div>`:'<div style="text-align:center;color:var(--muted);padding:16px;font-size:14px;">재고 없음</div>'}
+    ${!w.is_default?`<button class="btn btn-outline" style="margin-bottom:8px;" onclick="setDefaultWarehouse('${id}')">⭐ 기본 창고로 설정</button>`:''}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="closeModal();go('inout');S.txWarehouse=S.warehouses.find(w=>w.id==='${id}');setTxType('in')">📥 입고</button>
+      <button class="btn btn-secondary" onclick="closeModal();go('inout');S.txWarehouse=S.warehouses.find(w=>w.id==='${id}');setTxType('out')">📤 출고</button>
+    </div>
+  `,[{label:'수정',cls:'btn-outline',fn:`closeModal();showWarehouseForm(S.warehouses.find(w=>w.id==='${id}'))`},{label:'삭제',cls:'btn-danger',fn:`confirmDeleteWarehouse('${id}')`}]);
+}
+
+function showWarehouseForm(w){
+  const isEdit=!!w;
+  showModal(isEdit?'창고 수정':'창고 추가',`
+    <div class="fg"><label>창고 이름 *</label><input id="wf-name" value="${w?.name||''}" placeholder="예: 본사 창고, 2호 창고"></div>
+    <div class="fg"><label>메모</label><input id="wf-notes" value="${w?.notes||''}" placeholder="위치, 용도 등"></div>
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;">
+      <input type="checkbox" id="wf-default" ${w?.is_default?'checked':''} style="width:18px;height:18px;">
+      <label for="wf-default" style="font-size:15px;">기본 창고로 설정 ⭐</label>
+    </div>
+  `,[{label:'취소',cls:'btn-secondary',fn:'closeModal()'},{label:isEdit?'저장':'추가',cls:'btn-primary',fn:`submitWarehouse('${w?.id||''}')`}]);
+}
+
+async function submitWarehouse(id){
+  const name=document.getElementById('wf-name').value.trim();
+  if(!name){toast('창고 이름을 입력하세요','e');return;}
+  const notes=document.getElementById('wf-notes').value.trim();
+  const isDefault=document.getElementById('wf-default').checked;
+  const now=new Date().toISOString();
+  try{
+    if(isDefault){await S.sb.from('warehouses').update({is_default:false}).neq('id',id||'00000000-0000-0000-0000-000000000000');}
+    if(id){
+      await S.sb.from('warehouses').update({name,notes,is_default:isDefault,updated_at:now}).eq('id',id);
+    }else{
+      await S.sb.from('warehouses').insert({name,notes,is_default:isDefault,is_active:true,created_at:now});
+    }
+    await loadWarehouses();closeModal();renderWarehouses();toast(id?'수정됨':'창고 추가됨','s');
+  }catch(e){toast('오류: '+e.message,'e');}
+}
+
+async function setDefaultWarehouse(id){
+  await S.sb.from('warehouses').update({is_default:false}).neq('id',id);
+  await S.sb.from('warehouses').update({is_default:true}).eq('id',id);
+  await loadWarehouses();closeModal();showWarehouseDetail(id);toast('기본 창고로 설정됨','s');
+}
+
+async function confirmDeleteWarehouse(id){
+  const w=S.warehouses.find(x=>x.id===id);
+  if(!confirm(`"${w?.name}" 창고를 삭제하시겠습니까?\n해당 창고 재고 데이터도 삭제됩니다.`))return;
+  await S.sb.from('warehouse_stocks').delete().eq('warehouse_id',id);
+  await S.sb.from('warehouses').delete().eq('id',id);
+  await loadWarehouses();await loadWarehouseStocks();closeModal();renderWarehouses();toast('삭제됨','s');
 }
 
 /* ── 위탁처 ── */
@@ -1027,6 +1216,7 @@ function renderMore(){
     <div style="padding:16px 0;">
       <div class="section-title">재고 관리</div>
       <div class="row-list">
+        <div class="row-item" onclick="go('warehouses')"><span class="row-label">🏭 창고 관리</span><span class="row-arrow">›</span></div>
         <div class="row-item" onclick="go('purchase')"><span class="row-label">📋 발주서</span><span class="row-arrow">›</span></div>
         <div class="row-item" onclick="go('inout')"><span class="row-label">↕️ 입출고</span><span class="row-arrow">›</span></div>
         <div class="row-item" onclick="go('history')"><span class="row-label">🕐 거래 이력</span><span class="row-arrow">›</span></div>
@@ -1079,8 +1269,15 @@ function openSettings(){
 }
 
 function copyOrderSQL(){
-  const sql=`-- 제품 분류 컬럼 추가 (최초 1회)
+  const sql=`-- 제품 분류 컬럼 추가
 ALTER TABLE products ADD COLUMN IF NOT EXISTS classification TEXT DEFAULT '';
+-- 창고 테이블
+CREATE TABLE IF NOT EXISTS warehouses (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, name TEXT NOT NULL, is_default BOOLEAN DEFAULT false, notes TEXT DEFAULT '', is_active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now());
+CREATE TABLE IF NOT EXISTS warehouse_stocks (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, product_id UUID REFERENCES products(id) ON DELETE CASCADE, warehouse_id UUID REFERENCES warehouses(id) ON DELETE CASCADE, quantity INTEGER DEFAULT 0, updated_at TIMESTAMPTZ DEFAULT now(), UNIQUE(product_id, warehouse_id));
+ALTER TABLE warehouses ENABLE ROW LEVEL SECURITY; ALTER TABLE warehouse_stocks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public" ON warehouses FOR ALL USING (true) WITH CHECK (true); CREATE POLICY "Public" ON warehouse_stocks FOR ALL USING (true) WITH CHECK (true);
+-- transactions 컬럼 추가
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS warehouse_id UUID; ALTER TABLE transactions ADD COLUMN IF NOT EXISTS warehouse_name TEXT DEFAULT ''; ALTER TABLE transactions ADD COLUMN IF NOT EXISTS to_warehouse_id UUID; ALTER TABLE transactions ADD COLUMN IF NOT EXISTS to_warehouse_name TEXT DEFAULT '';
 -- 판매서
 CREATE TABLE IF NOT EXISTS sales_orders (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, order_no TEXT NOT NULL, customer TEXT DEFAULT '', status TEXT DEFAULT 'draft', sale_date DATE, ship_date DATE, notes TEXT DEFAULT '', total_amount DECIMAL(12,2) DEFAULT 0, created_by TEXT DEFAULT '', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now());
 CREATE TABLE IF NOT EXISTS sales_order_items (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, order_id UUID REFERENCES sales_orders(id) ON DELETE CASCADE, product_id UUID REFERENCES products(id) ON DELETE SET NULL, product_name TEXT DEFAULT '', product_code TEXT DEFAULT '', quantity INTEGER DEFAULT 1, unit_price DECIMAL(10,2) DEFAULT 0);
