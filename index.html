@@ -256,7 +256,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button class="bnav-item active" id="nav-dash" onclick="go('dash')"><span class="bnav-icon">🏠</span><span class="bnav-label">홈</span></button>
     <button class="bnav-item" id="nav-products" onclick="go('products')"><span class="bnav-icon">📦</span><span class="bnav-label">제품</span></button>
     <button class="bnav-item" id="nav-sales" onclick="go('sales')"><span class="bnav-icon">🧾</span><span class="bnav-label">판매서</span></button>
-    <button class="bnav-item" id="nav-purchase" onclick="go('purchase')"><span class="bnav-icon">📋</span><span class="bnav-label">발주서</span></button>
+    <button class="bnav-item" id="nav-consign" onclick="go('consign')"><span class="bnav-icon">🚚</span><span class="bnav-label">위탁처</span></button>
     <button class="bnav-item" id="nav-more" onclick="go('more')"><span class="bnav-icon">⋯</span><span class="bnav-label">더보기</span></button>
   </div>
 </div>
@@ -386,6 +386,7 @@ function setHdr(tab){
   else if(tab==='sales')R.innerHTML='<button class="icon-btn primary" onclick="showSalesOrderForm(null)">+</button>';
   else if(tab==='purchase')R.innerHTML='<button class="icon-btn primary" onclick="showPurchaseOrderForm(null)">+</button>';
   else if(tab==='consign')R.innerHTML='<button class="icon-btn primary" onclick="showLocationForm(null)">+</button>';
+  else if(tab==='more')R.innerHTML='';
   else R.innerHTML='';
 }
 
@@ -1019,9 +1020,9 @@ function renderMore(){
     <div style="padding:16px 0;">
       <div class="section-title">재고 관리</div>
       <div class="row-list">
+        <div class="row-item" onclick="go('purchase')"><span class="row-label">📋 발주서</span><span class="row-arrow">›</span></div>
         <div class="row-item" onclick="go('inout')"><span class="row-label">↕️ 입출고</span><span class="row-arrow">›</span></div>
-        <div class="row-item" onclick="go('consign')"><span class="row-label">🚚 위탁처 관리</span><span class="row-arrow">›</span></div>
-        <div class="row-item" onclick="go('history')"><span class="row-label">📋 거래 이력</span><span class="row-arrow">›</span></div>
+        <div class="row-item" onclick="go('history')"><span class="row-label">🕐 거래 이력</span><span class="row-arrow">›</span></div>
       </div>
       <div class="section-title">계정 및 설정</div>
       <div class="row-list">
