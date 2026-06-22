@@ -1023,18 +1023,20 @@ function showLocSearch(){
   if(!S.locations.length){toast('위탁처를 먼저 추가하세요','e');return;}
   showModal('위탁처 선택',`<div>${S.locations.map(loc=>{const t=S.cstocks.filter(s=>s.location_id===loc.id).reduce((a,s)=>a+s.quantity,0);return`<div class="sitem" onclick="S.txLocation=S.locations.find(l=>l.id==='${loc.id}');closeModal();renderInOut()"><div><div class="sitem-name">${loc.name}</div><div class="sitem-sub">${loc.contact||'연락처 없음'} · 위탁 ${t}개</div></div><span>🚚</span></div>`;}).join('')}</div>`);
 }
+window._whSearchMode='single';
+window.selectWarehouse=function(wid){
+  const w=S.warehouses.find(x=>x.id===wid);
+  if(window._whSearchMode==='to')S.txToWarehouse=w;
+  else S.txWarehouse=w;
+  closeModal();renderInOut();
+};
 window.showWhSearch=function(mode){
   if(!S.warehouses.length){toast('창고를 먼저 추가하세요','e');go('warehouses');return;}
+  window._whSearchMode=mode;
   const pid=S.txProduct?.id;
   showModal('창고 선택',`<div>${S.warehouses.map(w=>{
-    const q=pid?whStockInfo(pid,w.id):'-';
-    return`<div class="sitem" onclick="
-      ${mode==='from'?`S.txWarehouse=S.warehouses.find(w=>w.id==='${w.id}')`:
-        mode==='to'?`S.txToWarehouse=S.warehouses.find(w=>w.id==='${w.id}')`:
-        `S.txWarehouse=S.warehouses.find(w=>w.id==='${w.id}')`};closeModal();renderInOut()">
-      <div><div class="sitem-name">${w.name}${w.is_default?' ⭐':''}</div><div class="sitem-sub">${w.notes||''}</div></div>
-      ${pid!==undefined?`<span class="badge badge-primary">${q}개</span>`:''}
-    </div>`;
+    const q=pid?whStockInfo(pid,w.id):'?';
+    return`<div class="sitem" onclick="selectWarehouse('${w.id}')"><div><div class="sitem-name">${w.name}${w.is_default?' ⭐':''}</div><div class="sitem-sub">${w.notes||'메모 없음'} · ${q}개</div></div><span class="badge badge-primary">${q}개</span></div>`;
   }).join('')}</div>`);
 };
 async function submitTx(){
