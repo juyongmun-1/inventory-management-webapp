@@ -1311,7 +1311,42 @@ function showProductForm(p){
       <input type="file" id="pf-img-input" accept="image/*" style="display:none" onchange="previewProductImage(this)">
     </div>
     <div class="fg"><label>제품명 *</label><input id="pf-name" value="${p?.name||''}" placeholder="제품 이름"></div>
-    <div class="fg"><label>제품 코드/SKU *</label><input id="pf-code" value="${p?.code||''}" placeholder="예: SKU-001"></div>
+    <!-- 제품 코드 생성기 -->
+    <div style="background:var(--bg);border-radius:12px;padding:14px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;">제품 코드 생성기</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div class="fg" style="margin:0;"><label style="font-size:11px;">① 제품 유형</label>
+          <select id="pc-type" onchange="recalcProductCode()" style="width:100%;padding:8px;border:1.5px solid var(--border2);border-radius:8px;font-size:13px;">
+            <option value="1" ${(p?.code||'').startsWith('1')?'selected':''}>1 · 자체상품</option>
+            <option value="2" ${(p?.code||'').startsWith('2')?'selected':''}>2 · 답례품</option>
+            <option value="3" ${(p?.code||'').startsWith('3')?'selected':''}>3 · OEM·ODM</option>
+          </select>
+        </div>
+        <div class="fg" style="margin:0;"><label style="font-size:11px;">② 분류</label>
+          <select id="pc-cat" onchange="recalcProductCode()" style="width:100%;padding:8px;border:1.5px solid var(--border2);border-radius:8px;font-size:13px;">
+            <option value="C" ${(p?.code||'').charAt(1)==='C'?'selected':''}>C · CP</option>
+            <option value="M" ${(p?.code||'').charAt(1)==='M'?'selected':''}>M · MP</option>
+            <option value="S" ${(p?.code||'').charAt(1)==='S'&&(p?.code||'').charAt(2)==='-'?'selected':''}>S · SP</option>
+          </select>
+        </div>
+        <div class="fg" style="margin:0;"><label style="font-size:11px;">③ 규격</label>
+          <select id="pc-size" onchange="recalcProductCode()" style="width:100%;padding:8px;border:1.5px solid var(--border2);border-radius:8px;font-size:13px;">
+            <option value="D" ${(p?.code||'').charAt(3)==='D'?'selected':''}>D · 일반</option>
+            <option value="S" ${(p?.code||'').charAt(3)==='S'?'selected':''}>S · SMALL</option>
+            <option value="P" ${(p?.code||'').charAt(3)==='P'?'selected':''}>P · 반려동물</option>
+          </select>
+        </div>
+        <div class="fg" style="margin:0;"><label style="font-size:11px;">④ 개발순번</label>
+          <input type="number" id="pc-seq" min="1" max="999" value="${parseInt((p?.code||'').substring(4))||1}" oninput="recalcProductCode()" style="width:100%;padding:8px;border:1.5px solid var(--border2);border-radius:8px;font-size:13px;">
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:#fff;border-radius:8px;padding:10px 12px;border:2px solid var(--primary);">
+        <span style="font-size:12px;color:var(--muted);white-space:nowrap;">생성된 코드</span>
+        <span id="pc-preview" style="font-size:16px;font-weight:800;color:var(--primary);font-family:monospace;flex:1;">1C-D001</span>
+        <button onclick="applyGeneratedCode()" style="padding:6px 12px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">적용 →</button>
+      </div>
+    </div>
+    <div class="fg"><label>제품 코드/SKU * <span style="font-size:11px;color:var(--muted);font-weight:400;">(생성기에서 적용하거나 직접 입력)</span></label><input id="pf-code" value="${p?.code||''}" placeholder="예: 1C-D001" style="font-family:monospace;font-weight:700;"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div class="fg"><label>카테고리</label><select id="pf-cat">${catOpts}</select></div>
       <div class="fg"><label>분류</label><select id="pf-cls">${clsOpts}</select></div>
@@ -1327,6 +1362,18 @@ function showProductForm(p){
     </div>
   `,[{label:'취소',cls:'btn-secondary',fn:'closeModal()'},{label:isEdit?'저장':'추가',cls:'btn-primary',fn:`submitProduct('${p?.id||''}')`}]);
 }
+window.recalcProductCode=function(){
+  const t=document.getElementById('pc-type')?.value||'1';
+  const c=document.getElementById('pc-cat')?.value||'C';
+  const s=document.getElementById('pc-size')?.value||'D';
+  const seq=String(parseInt(document.getElementById('pc-seq')?.value)||1).padStart(3,'0');
+  const code=`${t}${c}-${s}${seq}`;
+  const el=document.getElementById('pc-preview');if(el)el.textContent=code;
+};
+window.applyGeneratedCode=function(){
+  const code=document.getElementById('pc-preview')?.textContent;
+  const el=document.getElementById('pf-code');if(el&&code)el.value=code;
+};
 function previewProductImage(input){
   const file=input.files[0];if(!file)return;
   S.pendingImageFile=file;
