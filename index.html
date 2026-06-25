@@ -434,9 +434,8 @@ async function recordTx(data){
   // warehouse stock before
   const wid=data.warehouse_id;
   const ws=wid?getWS(p.id,wid):null;
-  // 창고별 기록이 없는 제품은 current_stock을 폴백으로 사용
-  const hasWsEntries=S.warehouseStocks.some(s=>s.product_id===p.id);
-  const ws0=ws?ws.quantity:(!hasWsEntries?p.current_stock:0);
+  // warehouse_stocks 항목이 없으면 current_stock 사용 (창고 미설정 제품 호환)
+  const ws0=ws!=null?ws.quantity:p.current_stock;
 
   // for move type
   if(data.type==='move'){
