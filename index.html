@@ -1719,58 +1719,268 @@ function renderMore(){
 }
 
 /* ── 매출 현황 ── */
-function renderAnalytics(){
-  const period=S.analyticsPeriod||'month';
-  const now=new Date();
-  const orders=S.salesOrders.filter(o=>{
+/* ── 매출 현황 공통 헬퍼 ── */
+function getYearOrders(year){
+  return S.salesOrders.filter(o=>{
     if(o.status!=='completed')return false;
-    const d=new Date(o.created_at);
-    if(period==='month')return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();
-    if(period==='year')return d.getFullYear()===now.getFullYear();
-    return true;
+    return new Date(o.created_at).getFullYear()===year;
   });
-  const items=orders.flatMap(o=>S.salesOrderItems.filter(i=>i.order_id===o.id).map(i=>({...i,order:o})));
-  const totalRev=orders.reduce((a,o)=>a+Number(o.total_amount||0),0);
-  const totalQty=items.reduce((a,i)=>a+i.quantity,0);
+}
+function getOrderItems(orders){
+  return orders.flatMap(o=>S.salesOrderItems.filter(i=>i.order_id===o.id).map(i=>{
+    const p=S.products.find(x=>x.id===i.product_id);
+    return{...i,cost_price:p?.cost_price||0};
+  }));
+}
+function calcTax(income){
+  if(income<=0)return 0;
+  const b=[
+    [14000000,0.06,0],[50000000,0.15,1260000],[88000000,0.24,5760000],
+    [150000000,0.35,15440000],[300000000,0.38,19940000],[500000000,0.40,25940000],
+    [1000000000,0.42,35940000],[Infinity,0.45,65940000]
+  ];
+  const [,r,d]=b.find(([l])=>income<=l);
+  return Math.max(0,Math.round(income*r-d));
+}
 
-  // 품목별
+function revenueBarChart(orders,year){
+  const monthly=Array.from({length:12},(_,m)=>{
+    return orders.filter(o=>new Date(o.created_at).getMonth()===m)
+      .reduce((a,o)=>a+Number(o.total_amount||0),0);
+  });
+  const maxV=Math.max(...monthly,1);
+  const W=36,G=4,H=100,PL=8;
+  const svgW=(W+G)*12+PL*2;
+  const bars=monthly.map((v,i)=>{
+    const h=Math.max(2,Math.round(v/maxV*H));
+    const x=PL+i*(W+G);const y=H-h;
+    const lbl=v>=10000?`${Math.round(v/10000)}만`:'';
+    return`<rect x="${x}" y="${y}" width="${W}" height="${h}" fill="#4F46E5" rx="3" opacity="${v>0?'0.85':'0.15'}"/>
+<text x="${x+W/2}" y="${H+14}" text-anchor="middle" font-size="9" fill="#888">${i+1}월</text>
+${lbl?`<text x="${x+W/2}" y="${y-3}" text-anchor="middle" font-size="8" fill="#4F46E5">${lbl}</text>`:''}`;
+  }).join('');
+  return`<svg viewBox="0 0 ${svgW} ${H+24}" style="width:100%;height:140px;">${bars}</svg>`;
+}
+
+function analyticsBackBtn(){
+  return`<button onclick="S.analyticsPage='main';renderAnalytics()" style="display:flex;align-items:center;gap:4px;background:none;border:none;color:var(--primary);font-size:14px;font-weight:600;cursor:pointer;padding:0 0 12px 0;">‹ 매출 현황</button>`;
+}
+function analyticsYearTabs(year){
+  const now=new Date().getFullYear();
+  const years=[now-2,now-1,now];
+  return`<div style="display:flex;gap:6px;margin-bottom:16px;">${years.map(y=>`<button class="btn ${y===year?'btn-primary':'btn-secondary'}" style="flex:1;font-size:13px;" onclick="S.analyticsYear=${y};renderAnalytics()">${y}년</button>`).join('')}</div>`;
+}
+
+/* ── 매출 현황 라우터 ── */
+function renderAnalytics(){
+  const page=S.analyticsPage||'main';
+  if(page==='main')renderAnalyticsMain();
+  else if(page==='products')renderAnalyticsProducts();
+  else if(page==='customers')renderAnalyticsCustomers();
+  else if(page==='tax')renderAnalyticsTax();
+  else if(page==='orders')renderAnalyticsOrders();
+}
+
+/* ── 메인 페이지 ── */
+function renderAnalyticsMain(){
+  if(!S.analyticsYear)S.analyticsYear=new Date().getFullYear();
+  const year=S.analyticsYear;
+  const orders=getYearOrders(year);
+  const items=getOrderItems(orders);
+  const totalRev=orders.reduce((a,o)=>a+Number(o.total_amount||0),0);
+  const revExVat=Math.round(totalRev/1.1);
+  const costTotal=items.reduce((a,i)=>a+(i.cost_price||0)*(i.quantity||1),0);
+  const grossProfit=revExVat-costTotal;
+  const vat=totalRev-revExVat;
+  const incomeTax=calcTax(grossProfit);
+  const netProfit=grossProfit-incomeTax;
+  const totalQty=items.reduce((a,i)=>a+i.quantity,0);
+  const avgOrder=orders.length>0?Math.round(totalRev/orders.length):0;
+  document.getElementById('content').innerHTML=`
+    <div style="padding:16px;">
+      ${analyticsYearTabs(year)}
+      <!-- 요약 카드 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
+        <div style="background:var(--primary);border-radius:14px;padding:14px 10px;color:#fff;text-align:center;">
+          <div style="font-size:10px;opacity:.8;margin-bottom:4px;">총 매출</div>
+          <div style="font-size:16px;font-weight:900;">₩${(totalRev/10000).toFixed(0)}만</div>
+        </div>
+        <div style="background:#059669;border-radius:14px;padding:14px 10px;color:#fff;text-align:center;">
+          <div style="font-size:10px;opacity:.8;margin-bottom:4px;">영업이익</div>
+          <div style="font-size:16px;font-weight:900;">₩${(grossProfit/10000).toFixed(0)}만</div>
+          <div style="font-size:9px;opacity:.8;">${totalRev>0?((grossProfit/revExVat)*100).toFixed(1):0}%</div>
+        </div>
+        <div style="background:#7C3AED;border-radius:14px;padding:14px 10px;color:#fff;text-align:center;">
+          <div style="font-size:10px;opacity:.8;margin-bottom:4px;">순이익(추정)</div>
+          <div style="font-size:16px;font-weight:900;">₩${(netProfit/10000).toFixed(0)}만</div>
+          <div style="font-size:9px;opacity:.8;">${totalRev>0?((netProfit/revExVat)*100).toFixed(1):0}%</div>
+        </div>
+      </div>
+      <!-- 월별 그래프 -->
+      <div style="background:#fff;border-radius:14px;padding:14px;margin-bottom:16px;border:1px solid var(--border2);">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;">월별 매출 추이</div>
+        ${revenueBarChart(orders,year)}
+      </div>
+      <!-- 보조 지표 -->
+      <div class="row-list" style="margin-bottom:16px;">
+        <div class="row-item"><span class="row-label">납품 건수</span><span class="row-value set">${orders.length}건</span></div>
+        <div class="row-item"><span class="row-label">건당 평균 금액</span><span class="row-value set">₩${avgOrder.toLocaleString()}</span></div>
+        <div class="row-item"><span class="row-label">총 판매 수량</span><span class="row-value set">${totalQty}개</span></div>
+        <div class="row-item"><span class="row-label">부가세(VAT)</span><span class="row-value set">₩${vat.toLocaleString()}</span></div>
+      </div>
+      <!-- 서브페이지 이동 -->
+      <div class="section-title">상세 분석</div>
+      <div class="row-list">
+        <div class="row-item" onclick="S.analyticsPage='products';renderAnalytics()"><span class="row-label">📦 품목별 매출</span><span class="row-arrow">›</span></div>
+        <div class="row-item" onclick="S.analyticsPage='customers';renderAnalytics()"><span class="row-label">👥 판매처별 매출</span><span class="row-arrow">›</span></div>
+        <div class="row-item" onclick="S.analyticsPage='orders';renderAnalytics()"><span class="row-label">🧾 납품서 현황</span><span class="row-arrow">›</span></div>
+        <div class="row-item" onclick="S.analyticsPage='tax';renderAnalytics()"><span class="row-label">🧾 세금 추정</span><span class="row-arrow">›</span></div>
+      </div>
+    </div>`;
+}
+
+/* ── 품목별 매출 ── */
+function renderAnalyticsProducts(){
+  const year=S.analyticsYear||new Date().getFullYear();
+  const orders=getYearOrders(year);
+  const items=getOrderItems(orders);
+  const totalRev=orders.reduce((a,o)=>a+Number(o.total_amount||0),0);
   const byProd={};
   items.forEach(i=>{
-    if(!byProd[i.product_name])byProd[i.product_name]={qty:0,rev:0};
+    if(!byProd[i.product_name])byProd[i.product_name]={qty:0,rev:0,cost:0};
     byProd[i.product_name].qty+=i.quantity;
     byProd[i.product_name].rev+=(i.unit_price||0)*i.quantity;
+    byProd[i.product_name].cost+=(i.cost_price||0)*i.quantity;
   });
-  const prodRows=Object.entries(byProd).sort((a,b)=>b[1].rev-a[1].rev)
-    .map(([name,v])=>`<div class="row-item"><div><div style="font-weight:600;">${name}</div><div style="font-size:12px;color:var(--muted);">${v.qty}개</div></div><span class="row-value set">₩${Number(v.rev).toLocaleString()}</span></div>`).join('');
+  const rows=Object.entries(byProd).sort((a,b)=>b[1].rev-a[1].rev).map(([name,v])=>{
+    const margin=v.rev-v.cost;
+    const pct=totalRev>0?((v.rev/totalRev)*100).toFixed(1):0;
+    return`<div class="row-item" style="flex-direction:column;align-items:flex-start;gap:4px;">
+      <div style="display:flex;justify-content:space-between;width:100%;">
+        <span style="font-weight:700;">${name}</span>
+        <span style="font-weight:700;color:var(--primary);">₩${v.rev.toLocaleString()}</span>
+      </div>
+      <div style="display:flex;gap:12px;font-size:12px;color:var(--muted);">
+        <span>수량 ${v.qty}개</span>
+        <span>마진 ₩${margin.toLocaleString()}</span>
+        <span>비중 ${pct}%</span>
+      </div>
+      <div style="width:100%;background:var(--border2);border-radius:4px;height:4px;margin-top:2px;">
+        <div style="width:${pct}%;background:var(--primary);border-radius:4px;height:4px;"></div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('content').innerHTML=`
+    <div style="padding:16px;">
+      ${analyticsBackBtn()}
+      <div style="font-weight:700;font-size:16px;margin-bottom:4px;">품목별 매출</div>
+      <div style="color:var(--muted);font-size:13px;margin-bottom:16px;">${year}년 · 출고완료 기준</div>
+      ${rows?`<div class="row-list">${rows}</div>`:'<div class="empty"><div class="icon">📦</div><p>데이터 없음</p></div>'}
+    </div>`;
+}
 
-  // 판매처별
+/* ── 판매처별 매출 ── */
+function renderAnalyticsCustomers(){
+  const year=S.analyticsYear||new Date().getFullYear();
+  const orders=getYearOrders(year);
+  const totalRev=orders.reduce((a,o)=>a+Number(o.total_amount||0),0);
   const byDest={};
   orders.forEach(o=>{
     const dest=o.order_type==='consignment'?(o.location_name||'위탁처 미지정'):(o.customer||'고객 미지정');
-    if(!byDest[dest])byDest[dest]={cnt:0,rev:0};
+    const type=o.order_type==='consignment'?'🚚':'🛒';
+    if(!byDest[dest])byDest[dest]={cnt:0,rev:0,type};
     byDest[dest].cnt++;byDest[dest].rev+=Number(o.total_amount||0);
   });
-  const destRows=Object.entries(byDest).sort((a,b)=>b[1].rev-a[1].rev)
-    .map(([dest,v])=>`<div class="row-item"><div><div style="font-weight:600;">${dest}</div><div style="font-size:12px;color:var(--muted);">${v.cnt}건</div></div><span class="row-value set">₩${Number(v.rev).toLocaleString()}</span></div>`).join('');
-
-  const periodLabel={'month':'이번 달','year':'올해','all':'전체'};
+  const rows=Object.entries(byDest).sort((a,b)=>b[1].rev-a[1].rev).map(([dest,v])=>{
+    const pct=totalRev>0?((v.rev/totalRev)*100).toFixed(1):0;
+    return`<div class="row-item" style="flex-direction:column;align-items:flex-start;gap:4px;">
+      <div style="display:flex;justify-content:space-between;width:100%;">
+        <span style="font-weight:700;">${v.type} ${dest}</span>
+        <span style="font-weight:700;color:var(--primary);">₩${v.rev.toLocaleString()}</span>
+      </div>
+      <div style="display:flex;gap:12px;font-size:12px;color:var(--muted);">
+        <span>${v.cnt}건</span><span>비중 ${pct}%</span>
+      </div>
+      <div style="width:100%;background:var(--border2);border-radius:4px;height:4px;margin-top:2px;">
+        <div style="width:${pct}%;background:var(--primary);border-radius:4px;height:4px;"></div>
+      </div>
+    </div>`;
+  }).join('');
   document.getElementById('content').innerHTML=`
     <div style="padding:16px;">
-      <div style="display:flex;gap:8px;margin-bottom:16px;">
-        ${['month','year','all'].map(p=>`<button class="btn ${period===p?'btn-primary':'btn-secondary'}" style="flex:1;padding:8px 0;font-size:13px;" onclick="S.analyticsPeriod='${p}';renderAnalytics()">${periodLabel[p]}</button>`).join('')}
+      ${analyticsBackBtn()}
+      <div style="font-weight:700;font-size:16px;margin-bottom:4px;">판매처별 매출</div>
+      <div style="color:var(--muted);font-size:13px;margin-bottom:16px;">${year}년 · 출고완료 기준</div>
+      ${rows?`<div class="row-list">${rows}</div>`:'<div class="empty"><div class="icon">👥</div><p>데이터 없음</p></div>'}
+    </div>`;
+}
+
+/* ── 납품서 현황 ── */
+function renderAnalyticsOrders(){
+  const year=S.analyticsYear||new Date().getFullYear();
+  const allOrders=S.salesOrders.filter(o=>new Date(o.created_at).getFullYear()===year);
+  const byStatus={quote:0,quote_confirmed:0,pending:0,completed:0};
+  allOrders.forEach(o=>{if(byStatus[o.status]!==undefined)byStatus[o.status]++;});
+  const monthly=Array.from({length:12},(_,m)=>({cnt:0,rev:0,month:m+1}));
+  allOrders.filter(o=>o.status==='completed').forEach(o=>{
+    const m=new Date(o.created_at).getMonth();
+    monthly[m].cnt++;monthly[m].rev+=Number(o.total_amount||0);
+  });
+  const statusRows=[['quote','견적서',byStatus.quote],['quote_confirmed','견적확정',byStatus.quote_confirmed],['pending','출고대기',byStatus.pending],['completed','출고완료',byStatus.completed]].map(([s,l,c])=>`<div class="row-item"><span class="row-label"><span class="badge ${soStatusBadge(s)}">${l}</span></span><span class="row-value set">${c}건</span></div>`).join('');
+  const monthlyRows=monthly.filter(m=>m.cnt>0).map(m=>`<div class="row-item"><span class="row-label">${m.month}월</span><div style="text-align:right;"><div style="font-weight:700;color:var(--primary);">₩${m.rev.toLocaleString()}</div><div style="font-size:12px;color:var(--muted);">${m.cnt}건</div></div></div>`).join('');
+  document.getElementById('content').innerHTML=`
+    <div style="padding:16px;">
+      ${analyticsBackBtn()}
+      <div style="font-weight:700;font-size:16px;margin-bottom:4px;">납품서 현황</div>
+      <div style="color:var(--muted);font-size:13px;margin-bottom:16px;">${year}년 전체</div>
+      <div class="section-title">상태별</div>
+      <div class="row-list" style="margin-bottom:16px;">${statusRows}</div>
+      <div class="section-title">월별 출고완료</div>
+      ${monthlyRows?`<div class="row-list">${monthlyRows}</div>`:'<div style="color:var(--muted);text-align:center;padding:20px;">데이터 없음</div>'}
+    </div>`;
+}
+
+/* ── 세금 추정 ── */
+function renderAnalyticsTax(){
+  const year=S.analyticsYear||new Date().getFullYear();
+  const orders=getYearOrders(year);
+  const items=getOrderItems(orders);
+  const totalRev=orders.reduce((a,o)=>a+Number(o.total_amount||0),0);
+  const revExVat=Math.round(totalRev/1.1);
+  const vat=totalRev-revExVat;
+  const costTotal=items.reduce((a,i)=>(a+(i.cost_price||0)*(i.quantity||1)),0);
+  const grossProfit=revExVat-costTotal;
+  const incomeTax=calcTax(grossProfit);
+  const netProfit=grossProfit-incomeTax;
+  const taxRate=grossProfit>0?((incomeTax/grossProfit)*100).toFixed(1):0;
+  const brackets=[
+    ['~1,400만','6%',14000000],['~5,000만','15%',50000000],['~8,800만','24%',88000000],
+    ['~1.5억','35%',150000000],['~3억','38%',300000000],['초과','45%',Infinity]
+  ];
+  const curBracket=brackets.find(([,, l])=>grossProfit<=l)?.[1]||'45%';
+  document.getElementById('content').innerHTML=`
+    <div style="padding:16px;">
+      ${analyticsBackBtn()}
+      <div style="font-weight:700;font-size:16px;margin-bottom:4px;">세금 추정</div>
+      <div style="color:var(--muted);font-size:13px;margin-bottom:16px;">${year}년 · 추정값 (실제와 다를 수 있음)</div>
+      <div class="section-title">매출/원가 구조</div>
+      <div class="row-list" style="margin-bottom:16px;">
+        <div class="row-item"><span class="row-label">총 매출 (VAT포함)</span><span class="row-value set">₩${totalRev.toLocaleString()}</span></div>
+        <div class="row-item"><span class="row-label">부가세 (VAT 10%)</span><span class="row-value set" style="color:var(--danger);">₩${vat.toLocaleString()}</span></div>
+        <div class="row-item"><span class="row-label">공급가액 (VAT제외)</span><span class="row-value set">₩${revExVat.toLocaleString()}</span></div>
+        <div class="row-item"><span class="row-label">매출원가</span><span class="row-value set" style="color:var(--danger);">₩${costTotal.toLocaleString()}</span></div>
+        <div class="row-item" style="background:var(--success-l);"><span class="row-label" style="font-weight:700;">영업이익</span><span class="row-value set" style="color:var(--success);font-weight:700;">₩${grossProfit.toLocaleString()}</span></div>
       </div>
-      <div style="background:var(--primary);border-radius:16px;padding:20px;color:#fff;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div><div style="font-size:11px;opacity:.75;">총 매출</div><div style="font-size:24px;font-weight:900;">₩${Number(totalRev).toLocaleString()}</div></div>
-        <div><div style="font-size:11px;opacity:.75;">총 판매량</div><div style="font-size:24px;font-weight:900;">${totalQty}개</div></div>
-        <div><div style="font-size:11px;opacity:.75;">납품서 수</div><div style="font-size:20px;font-weight:700;">${orders.length}건</div></div>
-        <div><div style="font-size:11px;opacity:.75;">품목 수</div><div style="font-size:20px;font-weight:700;">${Object.keys(byProd).length}종</div></div>
+      <div class="section-title">종합소득세 추정</div>
+      <div class="row-list" style="margin-bottom:16px;">
+        <div class="row-item"><span class="row-label">과세표준 (영업이익 기준)</span><span class="row-value set">₩${grossProfit.toLocaleString()}</span></div>
+        <div class="row-item"><span class="row-label">적용 세율 구간</span><span class="row-value set">${curBracket}</span></div>
+        <div class="row-item"><span class="row-label">종합소득세 (추정)</span><span class="row-value set" style="color:var(--danger);">₩${incomeTax.toLocaleString()}</span></div>
+        <div class="row-item"><span class="row-label">실효세율</span><span class="row-value set">${taxRate}%</span></div>
+        <div class="row-item" style="background:var(--primary-l);"><span class="row-label" style="font-weight:700;">순이익 (추정)</span><span class="row-value set" style="color:var(--primary);font-weight:700;">₩${netProfit.toLocaleString()}</span></div>
       </div>
-      <div class="section-title">품목별 매출</div>
-      ${prodRows?`<div class="row-list">${prodRows}</div>`:'<div style="color:var(--muted);text-align:center;padding:20px;font-size:14px;">데이터 없음</div>'}
-      <div class="section-title">판매처별 매출</div>
-      ${destRows?`<div class="row-list">${destRows}</div>`:'<div style="color:var(--muted);text-align:center;padding:20px;font-size:14px;">데이터 없음</div>'}
-    </div>
-  `;
+      <div class="infobox">⚠️ 세금 추정은 영업이익 기준 단순 계산입니다. 실제 납부세액은 각종 공제·경비에 따라 다릅니다. 세무사 상담을 권장합니다.</div>
+    </div>`;
 }
 
 function openSettings(){
