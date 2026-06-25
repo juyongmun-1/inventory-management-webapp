@@ -987,15 +987,80 @@ function showProductDetail(id){
       <div class="row-item"><span class="row-label">원가</span><span class="row-value set">${p.cost_price?'₩'+Number(p.cost_price).toLocaleString():'-'}</span></div>
       <div class="row-item"><span class="row-label">최소 재고</span><span class="row-value set">${p.min_stock}개</span></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
       <button class="btn btn-success" onclick="closeModal();go('inout');selectProd('${p.id}');setTxType('in')">📥 입고</button>
       <button class="btn btn-danger" onclick="closeModal();go('inout');selectProd('${p.id}');setTxType('out')">📤 출고</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button class="btn btn-secondary" onclick="showProductAdjust('${p.id}')">📊 조정</button>
+      <button class="btn btn-secondary" onclick="showProductMove('${p.id}')">🔀 이동</button>
     </div>
   `,[
     {label:'수정',cls:'btn-outline',fn:`closeModal();showProductForm(S.products.find(p=>p.id==='${p.id}'))`},
     {label:'삭제',cls:'btn-danger',fn:`confirmDeleteProduct('${p.id}')`},
   ]);
 }
+
+/* ── 제품 재고 조정/이동 ── */
+window.showProductAdjust=function(pid){
+  const p=S.products.find(x=>x.id===pid);if(!p)return;
+  const hasWH=S.warehouses.length>0;
+  const whOpts=hasWH
+    ?S.warehouses.map(w=>{const s=getWS(pid,w.id);return`<option value="${w.id}">${w.name}${w.is_default?' ⭐':''} (현재 ${s?s.quantity:0}개)</option>`;}).join('')
+    :`<option value="">창고 없음 (전체 재고 조정)</option>`;
+  showModal(`📊 재고 조정 — ${p.name}`,`
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">선택한 창고의 실제 수량을 입력하면 그 값으로 수정됩니다.</div>
+    ${hasWH?`<div class="fg"><label>창고 선택</label><select id="adj-wh">${whOpts}</select></div>`:''}
+    <div class="fg"><label>실제 수량 (개)</label><input type="number" id="adj-qty" min="0" placeholder="실제 재고 수량 입력" style="font-size:24px;font-weight:800;text-align:center;"></div>
+    <div class="fg" style="margin-bottom:0;"><label>메모</label><input id="adj-notes" placeholder="조정 사유 등"></div>
+  `,[
+    {label:'취소',cls:'btn-secondary',fn:`showProductDetail('${pid}')`},
+    {label:'조정 완료',cls:'btn-primary',fn:`submitProductAdjust('${pid}')`},
+  ]);
+};
+
+window.submitProductAdjust=async function(pid){
+  const qty=parseInt(document.getElementById('adj-qty')?.value);
+  if(isNaN(qty)||qty<0){toast('수량을 입력하세요','e');return;}
+  const whId=document.getElementById('adj-wh')?.value||null;
+  const notes=document.getElementById('adj-notes')?.value||'';
+  try{
+    await recordTx({product_id:pid,type:'warehouse_adj',quantity:qty,warehouse_id:whId||undefined,notes:notes||'재고 조정'});
+    await loadWarehouseStocks();await loadProducts();
+    toast('재고 조정 완료','s');showProductDetail(pid);
+  }catch(e){toast('오류: '+e.message,'e');}
+};
+
+window.showProductMove=function(pid){
+  const p=S.products.find(x=>x.id===pid);if(!p)return;
+  if(S.warehouses.length<2){toast('창고가 2개 이상 필요합니다','e');return;}
+  const whOpts=(label)=>S.warehouses.map(w=>{const s=getWS(pid,w.id);return`<option value="${w.id}">${w.name}${w.is_default?' ⭐':''} (${s?s.quantity:0}개)</option>`;}).join('');
+  showModal(`🔀 창고 이동 — ${p.name}`,`
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">출발 창고에서 도착 창고로 재고를 이동합니다.</div>
+    <div class="fg"><label>출발 창고</label><select id="mv-from">${whOpts('from')}</select></div>
+    <div class="fg"><label>도착 창고</label><select id="mv-to">${whOpts('to')}</select></div>
+    <div class="fg"><label>이동 수량 (개)</label><input type="number" id="mv-qty" min="1" placeholder="이동할 수량 입력" style="font-size:24px;font-weight:800;text-align:center;"></div>
+    <div class="fg" style="margin-bottom:0;"><label>메모</label><input id="mv-notes" placeholder="이동 사유 등"></div>
+  `,[
+    {label:'취소',cls:'btn-secondary',fn:`showProductDetail('${pid}')`},
+    {label:'이동 완료',cls:'btn-primary',fn:`submitProductMove('${pid}')`},
+  ]);
+};
+
+window.submitProductMove=async function(pid){
+  const fromId=document.getElementById('mv-from')?.value;
+  const toId=document.getElementById('mv-to')?.value;
+  if(!fromId||!toId){toast('창고를 선택하세요','e');return;}
+  if(fromId===toId){toast('출발과 도착 창고가 같습니다','e');return;}
+  const qty=parseInt(document.getElementById('mv-qty')?.value);
+  if(isNaN(qty)||qty<=0){toast('수량을 입력하세요','e');return;}
+  const notes=document.getElementById('mv-notes')?.value||'';
+  try{
+    await recordTx({product_id:pid,type:'move',quantity:qty,from_warehouse_id:fromId,to_warehouse_id:toId,notes:notes||'창고 이동'});
+    await loadWarehouseStocks();await loadProducts();
+    toast('이동 완료','s');showProductDetail(pid);
+  }catch(e){toast('오류: '+e.message,'e');}
+};
 
 function showProductForm(p){
   const isEdit=!!p;const cats=getCategories();const clsfs=getClassifications();const labels=getTypeLabels();
