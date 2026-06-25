@@ -704,7 +704,7 @@ function renderDash(){
   const today=new Date().toDateString();
   const todayIn=S.transactions.filter(t=>new Date(t.created_at).toDateString()===today&&t.type==='in').reduce((a,t)=>a+t.quantity,0);
   const todayOut=S.transactions.filter(t=>new Date(t.created_at).toDateString()===today&&t.type==='out').reduce((a,t)=>a+t.quantity,0);
-  const recentSales=S.salesOrders.slice(0,3);
+  const recentSales=S.salesOrders.filter(o=>o.status!=='completed').slice(0,3);
   const pendingSales=S.salesOrders.filter(o=>o.status==='pending').length;
 
   document.getElementById('content').innerHTML=`
@@ -741,6 +741,7 @@ function renderDash(){
     </div>
     <div class="section-title">빠른 실행</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 16px;">
+      <button class="btn btn-secondary" onclick="showSalesOrderForm(null)">📝 견적서 작성</button>
       <button class="btn btn-primary" onclick="showSalesOrderForm(null)">🧾 납품서 작성</button>
       <button class="btn btn-outline" onclick="showPurchaseOrderForm(null)">📋 발주서 작성</button>
       <button class="btn btn-secondary" onclick="go('inout')">↕️ 입출고</button>
