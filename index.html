@@ -1175,38 +1175,48 @@ function pThumbHtml(p){
 
 function renderProducts(){
   const cats=getCategories();const clsfs=getClassifications();const labels=getTypeLabels();
-  const f=S.pFilters;const filtered=filteredProducts();
+  const f=S.pFilters||{};const filtered=filteredProducts();
   const activeCount=Object.values(f).filter(Boolean).length;
-  const chip=(label,key,val,icon='')=>{
-    const on=f[key]===val;
-    return`<div class="chip ${on?'active':''}" onclick="togglePF('${key}','${val}')">${icon}${label}</div>`;
-  };
-  // 위탁 있는 위탁처 목록
   const locNames=[...new Set(S.cstocks.filter(s=>s.quantity>0).map(s=>S.locations.find(l=>l.id===s.location_id)?.name).filter(Boolean))];
 
+  // 활성 필터 레이블 (제거 가능한 chips)
+  const activeTags=[];
+  if(f.stock==='low')activeTags.push(['⚠️ 재고부족','stock']);
+  if(f.location==='has')activeTags.push(['위탁 재고','location']);
+  if(f.type)activeTags.push([f.type==='own'?labels.own:labels.oem,'type']);
+  if(f.classification)activeTags.push([f.classification,'classification']);
+  if(f.category)activeTags.push([f.category,'category']);
+  if(f.locName)activeTags.push(['🚚 '+f.locName,'locName']);
+
   document.getElementById('content').innerHTML=`
-    <div class="search-wrap"><div class="search-box"><input type="search" class="search-input" placeholder="제품명 또는 코드 검색..." value="${S.pSearch}" oninput="S.pSearch=this.value;renderProducts()"></div></div>
-    <div style="padding:0 16px 8px;">
-      <!-- 전체/부족 -->
-      <div class="chips" style="margin-bottom:6px;">
-        <div class="chip ${activeCount===0&&!S.pSearch?'active':''}" onclick="resetPF()">전체</div>
-        ${chip('⚠️ 재고부족','stock','low')}
-        ${chip('위탁 재고','location','has')}
+    <div style="background:#fff;position:sticky;top:0;z-index:10;border-bottom:1px solid var(--border2);">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 16px 8px;">
+        <div class="search-box" style="flex:1;margin:0;"><input type="search" class="search-input" placeholder="제품명 또는 코드 검색..." value="${S.pSearch}" oninput="S.pSearch=this.value;renderProducts()"></div>
+        <button onclick="showProductFilter()" style="position:relative;padding:8px 12px;border:1.5px solid ${activeCount>0?'var(--primary)':'var(--border2)'};border-radius:20px;background:${activeCount>0?'var(--primary-l)':'#fff'};color:${activeCount>0?'var(--primary)':'var(--text)'};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">
+          ⚙️ 필터${activeCount>0?` <span style="background:var(--primary);color:#fff;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-left:2px;">${activeCount}</span>`:''}
+        </button>
       </div>
-      <!-- 생산유형 -->
-      ${(()=>{const typeChips=[chip(labels.own,'type','own'),chip(labels.oem,'type','oem')].join('');return`<div style="font-size:10px;font-weight:700;color:var(--muted);margin:6px 0 4px;">생산유형</div><div class="chips" style="margin-bottom:6px;">${typeChips}</div>`;})()}
-      <!-- 분류 -->
-      ${clsfs.length>0?`<div style="font-size:10px;font-weight:700;color:var(--muted);margin:6px 0 4px;">분류</div><div class="chips" style="margin-bottom:6px;">${clsfs.map(c=>chip(c,'classification',c)).join('')}</div>`:''}
-      <!-- 카테고리 -->
-      ${cats.length>0?`<div style="font-size:10px;font-weight:700;color:var(--muted);margin:6px 0 4px;">카테고리</div><div class="chips" style="margin-bottom:6px;">${cats.map(c=>chip(c,'category',c)).join('')}</div>`:''}
-      <!-- 위탁처 -->
-      ${locNames.length>0?`<div style="font-size:10px;font-weight:700;color:var(--muted);margin:6px 0 4px;">위탁처</div><div class="chips" style="margin-bottom:6px;">${locNames.map(n=>chip(n,'locName',n,'🚚 ')).join('')}</div>`:''}
-      <div style="font-size:12px;color:var(--muted);text-align:right;padding:2px 0 4px;">${filtered.length}개 제품</div>
+      ${activeTags.length>0?`<div class="chips" style="padding:0 16px 8px;gap:6px;">${activeTags.map(([l,k])=>`<div class="chip active" style="display:flex;align-items:center;gap:4px;">${l}<span onclick="togglePF('${k}',null)" style="font-size:14px;line-height:1;opacity:.7;cursor:pointer;">×</span></div>`).join('')}<button onclick="resetPF()" style="border:none;background:none;color:var(--muted);font-size:12px;cursor:pointer;padding:2px 4px;">전체 초기화</button></div>`:''}
     </div>
+    <div style="padding:10px 16px 4px;display:flex;justify-content:flex-end;font-size:12px;color:var(--muted);">${filtered.length}개 제품</div>
     ${filtered.length===0?`<div class="empty"><div class="icon">📦</div><p>조건에 맞는 제품이 없습니다</p></div>`:`<div class="row-list">${filtered.map(p=>{const total=getTotalStock(p);const cs=S.cstocks.filter(s=>s.product_id===p.id).reduce((a,s)=>a+s.quantity,0);const isLow=total<=p.min_stock&&p.min_stock>0;return`<div class="prod-card" onclick="showProductDetail('${p.id}')">${pThumbHtml(p)}<div class="prod-info"><div class="prod-name">${p.name}</div><div class="prod-sub">${p.code}</div><div class="prod-badges"><span class="badge ${p.type==='oem'?'badge-warning':'badge-primary'}">${p.type==='oem'?labels.oem:labels.own}</span>${p.classification?`<span class="badge badge-gray">${p.classification}</span>`:''}${p.category?`<span class="badge badge-gray">${p.category}</span>`:''}${cs>0?`<span class="badge badge-purple">위탁 ${cs}</span>`:''}</div></div><div class="prod-stock"><div class="prod-num ${isLow?'low':''}">${total}</div><div class="prod-num-lbl">창고 ${p.current_stock}</div></div></div>`;}).join('')}</div>`}
     <div style="height:10px;"></div>
   `;
 }
+
+window.showProductFilter=function(){
+  const cats=getCategories();const clsfs=getClassifications();const labels=getTypeLabels();
+  const f=S.pFilters||{};
+  const locNames=[...new Set(S.cstocks.filter(s=>s.quantity>0).map(s=>S.locations.find(l=>l.id===s.location_id)?.name).filter(Boolean))];
+  const chip=(label,key,val,icon='')=>`<div class="chip ${f[key]===val?'active':''}" onclick="togglePF('${key}','${val}')">${icon}${label}</div>`;
+  showModal('필터',`
+    <div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;">재고 상태</div><div class="chips">${chip('⚠️ 재고부족','stock','low')}${chip('위탁 재고 있음','location','has')}</div></div>
+    <div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;">생산 유형</div><div class="chips">${chip(labels.own,'type','own')}${chip(labels.oem,'type','oem')}</div></div>
+    ${clsfs.length>0?`<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;">분류</div><div class="chips">${clsfs.map(c=>chip(c,'classification',c)).join('')}</div></div>`:''}
+    ${cats.length>0?`<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;">카테고리</div><div class="chips">${cats.map(c=>chip(c,'category',c)).join('')}</div></div>`:''}
+    ${locNames.length>0?`<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;">위탁처</div><div class="chips">${locNames.map(n=>chip(n,'locName',n,'🚚 ')).join('')}</div></div>`:''}
+  `,[{label:'초기화',cls:'btn-secondary',fn:'resetPF()'},{label:'적용',cls:'btn-primary',fn:'closeModal();renderProducts()'}]);
+};
 
 function filteredProducts(){
   const f=S.pFilters;let arr=S.products;
