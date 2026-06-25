@@ -461,10 +461,10 @@ h1{text-align:center;font-size:24px;font-weight:900;margin-bottom:20px;letter-sp
 .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
 .top-left{font-size:12px;line-height:2.2;}
 .ctable{border-collapse:collapse;font-size:11px;}
-.ctable td{border:1px solid #333;padding:5px 8px;white-space:nowrap;}
-.ctable .clabel{background:#f2f2f2;font-weight:bold;text-align:center;width:32px;writing-mode:vertical-rl;letter-spacing:4px;}
-.ctable .ckey{background:#f2f2f2;text-align:center;min-width:72px;}
-.ctable .cval{min-width:160px;}
+.ctable td{border:1px solid #333;padding:5px 8px;}
+.ctable .clabel{background:#f2f2f2;font-weight:bold;text-align:center;width:28px;vertical-align:middle;word-break:keep-all;line-height:1.8;}
+.ctable .ckey{background:#f2f2f2;text-align:center;min-width:80px;white-space:nowrap;}
+.ctable .cval{min-width:180px;white-space:nowrap;}
 .total-line{display:flex;align-items:baseline;gap:8px;margin:14px 0 10px;font-size:13px;font-weight:bold;}
 .total-line .amt{font-size:20px;font-weight:900;}
 table.items{width:100%;border-collapse:collapse;margin-bottom:10px;}
@@ -486,7 +486,7 @@ table.items tr:nth-child(even) td{background:#fafafa;}
   </div>
   <table class="ctable">
     <tr>
-      <td class="clabel" rowspan="6">공&nbsp;급&nbsp;자</td>
+      <td class="clabel" rowspan="6">공<br>급<br>자</td>
       <td class="ckey">사업자등록번호</td>
       <td class="cval">${co.bizNo||''}</td>
       <td rowspan="6" style="width:90px;padding:2px;vertical-align:middle;text-align:center;border-left:1px solid #333;">
@@ -502,7 +502,7 @@ table.items tr:nth-child(even) td{background:#fafafa;}
 </div>
 <div class="total-line">
   합계금액&nbsp;&nbsp;<span class="amt">${Number(total).toLocaleString()}</span>&nbsp;원&nbsp;&nbsp;
-  <span style="font-size:12px;font-weight:400;">( ${numToKorean(total)} )</span>
+  <span style="font-size:12px;font-weight:400;">( ${numToKorean(total)} )&nbsp;&nbsp;VAT 포함</span>
 </div>
 <table class="items">
   <thead><tr><th style="width:32%">품목</th><th style="width:8%">규격</th><th style="width:15%">납품 단가</th><th style="width:8%">수량</th><th style="width:17%">공급가액</th><th>비고</th></tr></thead>
