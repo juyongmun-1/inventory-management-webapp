@@ -483,7 +483,7 @@ function renderDash(){
   const today=new Date().toDateString();
   const todayIn=S.transactions.filter(t=>new Date(t.created_at).toDateString()===today&&t.type==='in').reduce((a,t)=>a+t.quantity,0);
   const todayOut=S.transactions.filter(t=>new Date(t.created_at).toDateString()===today&&t.type==='out').reduce((a,t)=>a+t.quantity,0);
-  const recentSales=S.salesOrders.slice(0,5);
+  const recentSales=S.salesOrders.slice(0,3);
   const pendingSales=S.salesOrders.filter(o=>o.status==='pending').length;
 
   document.getElementById('content').innerHTML=`
@@ -502,12 +502,17 @@ function renderDash(){
     <div class="row-list">
       ${recentSales.length===0?'<div class="row-item"><span class="row-muted" style="color:var(--muted);font-size:14px;">판매서가 없습니다</span></div>':recentSales.map(o=>{
         const items=S.salesOrderItems.filter(i=>i.order_id===o.id);
+        const dest=o.order_type==='consignment'?(o.location_name||'위탁처 미지정'):(o.customer||'고객 미지정');
+        const typeBadgeCls=o.order_type==='consignment'?'badge-purple':'badge-primary';
         return`<div class="order-card" onclick="showSalesOrderDetail('${o.id}')">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div class="order-no">${o.order_no}</div>
-            <span class="badge ${soStatusBadge(o.status)}">${soStatusLabel(o.status)}</span>
+            <div style="display:flex;gap:4px;align-items:center;">
+              <span class="badge ${soStatusBadge(o.status)}">${soStatusLabel(o.status)}</span>
+              <span class="badge ${typeBadgeCls}">${o.order_type==='consignment'?'위탁':'판매'}</span>
+            </div>
           </div>
-          <div class="order-meta">${fmtDate(o.created_at)} · ${o.customer||'고객 미지정'} · ${items.length}품목</div>
+          <div class="order-meta">${fmtDate(o.created_at)} · ${dest} · ${items.length}품목</div>
           <div class="order-total">₩${Number(o.total_amount||0).toLocaleString()}</div>
         </div>`;
       }).join('')}
@@ -592,7 +597,7 @@ async function completeSalesOrder(id){
       if(isCS){
         await recordTx({product_id:item.product_id,type:'send_consignment',quantity:item.quantity,location_id:o.location_id,notes:`납품서 ${o.order_no}`});
       }else{
-        await recordTx({product_id:item.product_id,type:'out',quantity:item.quantity,warehouse_id:S.txWarehouse?.id||getDefaultWarehouse()?.id,notes:`납품서 ${o.order_no}`});
+        await recordTx({product_id:item.product_id,type:'out',quantity:item.quantity,warehouse_id:o.warehouse_id||getDefaultWarehouse()?.id,notes:`납품서 ${o.order_no}`});
       }
     }
     await S.sb.from('sales_orders').update({status:'completed',updated_at:new Date().toISOString()}).eq('id',id);
@@ -617,15 +622,20 @@ function showSalesOrderForm(order,keepItems=false){
     S._soType=order?.order_type||'sale';
     S._soLocId=order?.location_id||null;
     S._soDiscType=order?.discount_type||'amount';
+    S._soDiscMode=order?.discount_mode||'total';
     S._soDiscVal=order?.discount_value||0;
+    S._soWarehouseId=order?.warehouse_id||getDefaultWarehouse()?.id||null;
   }
   S.soEditOrder=order??null;
   const isEdit=!!order;
   const oType=S._soType||'sale';
   const loc=S.locations.find(l=>l.id===S._soLocId);
   const discType=S._soDiscType||'amount';
+  const discMode=S._soDiscMode||'total';
   const discVal=S._soDiscVal||0;
+  const wh=S.warehouses.find(w=>w.id===S._soWarehouseId)||getDefaultWarehouse();
   const today=new Date().toISOString().substring(0,10);
+  const sel=(v,c)=>v===c?'selected':'';
   showModal(isEdit?'납품서 수정':'납품서 작성',`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
       <button class="btn ${oType==='sale'?'btn-primary':'btn-secondary'}" onclick="setSoType('sale')">🛒 판매</button>
@@ -636,6 +646,7 @@ function showSalesOrderForm(order,keepItems=false){
         ?`<div class="fr"><span class="fr-label">위탁처 *</span><div class="fr-right" style="cursor:pointer;color:${loc?'var(--text)':'var(--muted)'};font-weight:${loc?'600':'400'};" onclick="showSoLocPicker()">${loc?loc.name:'위탁처 선택 ▼'}</div></div>`
         :`<div class="fr"><span class="fr-label">고객</span><div class="fr-right"><input class="fr-input" id="so-customer" placeholder="고객명 입력" value="${order?.customer||''}"></div></div>`
       }
+      <div class="fr"><span class="fr-label">출고 창고</span><div class="fr-right" style="cursor:pointer;color:${wh?'var(--text)':'var(--muted)'};font-weight:${wh?'600':'400'};" onclick="showSoWhPicker()">${wh?wh.name+(wh.is_default?' ⭐':''):'창고 선택 ▼'}</div></div>
       <div class="fr"><span class="fr-label">판매일</span><div class="fr-right"><input class="fr-input" type="date" id="so-date" value="${order?.sale_date?.substring(0,10)||today}"></div></div>
       <div class="fr"><span class="fr-label">출고 예정일</span><div class="fr-right"><input class="fr-input" type="date" id="so-ship" value="${order?.ship_date?.substring(0,10)||''}"></div></div>
       <div class="fr"><span class="fr-label">메모</span><div class="fr-right"><input class="fr-input" id="so-notes" placeholder="메모" value="${order?.notes||''}"></div></div>
@@ -644,12 +655,15 @@ function showSalesOrderForm(order,keepItems=false){
     <div id="so-items-wrap"></div>
     <button class="btn btn-outline" style="margin-bottom:12px;" onclick="openAddItemModal('sales')">+ 제품 추가</button>
     <div class="form-rows" style="margin-bottom:12px;">
-      <div class="fr"><span class="fr-label">할인</span><div class="fr-right" style="display:flex;gap:6px;">
-        <select id="so-disc-type" onchange="S._soDiscType=this.value;recalcSo()" style="width:90px;padding:6px;border:1.5px solid var(--border2);border-radius:8px;font-size:13px;">
-          <option value="amount" ${discType==='amount'?'selected':''}>금액</option>
-          <option value="percent" ${discType==='percent'?'selected':''}>%</option>
+      <div class="fr"><span class="fr-label">할인 방식</span><div class="fr-right">
+        <select id="so-disc-type" onchange="S._soDiscType=this.value;recalcSo()" style="padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;font-size:13px;width:100%;">
+          <option value="percent" ${sel(discType,'percent')}>% 할인 (전체)</option>
+          <option value="amount" ${sel(discType,'amount')}>금액 할인 - 전체에서</option>
+          <option value="amount_each" ${sel(discType,'amount_each')}>금액 할인 - 각 항목에서</option>
         </select>
-        <input type="number" id="so-disc-val" value="${discVal||''}" placeholder="0" min="0" style="flex:1;padding:6px 10px;border:1.5px solid var(--border2);border-radius:8px;font-size:14px;" oninput="S._soDiscVal=parseFloat(this.value)||0;recalcSo()">
+      </div></div>
+      <div class="fr"><span class="fr-label">할인 값</span><div class="fr-right">
+        <input type="number" id="so-disc-val" value="${discVal||''}" placeholder="0" min="0" style="width:100%;padding:6px 10px;border:1.5px solid var(--border2);border-radius:8px;font-size:14px;" oninput="S._soDiscVal=parseFloat(this.value)||0;recalcSo()">
       </div></div>
     </div>
     <div class="row-list" style="margin:0 0 4px;" id="so-summary">
@@ -669,11 +683,22 @@ window.showSoLocPicker=function(){
   if(!S.locations.length){toast('위탁처를 먼저 추가하세요','e');return;}
   showModal('위탁처 선택',`<div>${S.locations.map(loc=>`<div class="sitem" onclick="S._soLocId='${loc.id}';showSalesOrderForm(S.soEditOrder,true)"><div class="sitem-name">${loc.name}</div></div>`).join('')}</div>`);
 };
+window.showSoWhPicker=function(){
+  if(!S.warehouses.length){toast('창고를 먼저 추가하세요','e');go('warehouses');return;}
+  showModal('출고 창고 선택',`<div>${S.warehouses.map(w=>`<div class="sitem" onclick="S._soWarehouseId='${w.id}';showSalesOrderForm(S.soEditOrder,true)"><div class="sitem-name">${w.name}${w.is_default?' ⭐':''}</div></div>`).join('')}</div>`);
+};
+function calcDiscAmt(dType,dVal,subtotal){
+  if(dType==='percent')return subtotal*dVal/100;
+  if(dType==='amount_each'){
+    return S.pendingItems.reduce((a,i)=>a+Math.min(dVal,i.unit_price||0)*(i.quantity||1),0);
+  }
+  return dVal; // amount (total)
+}
 function recalcSo(){
   const subtotal=S.pendingItems.reduce((a,i)=>a+(i.unit_price||0)*(i.quantity||1),0);
   const dType=document.getElementById('so-disc-type')?.value||S._soDiscType||'amount';
   const dVal=parseFloat(document.getElementById('so-disc-val')?.value)||0;
-  const discAmt=dType==='percent'?subtotal*dVal/100:dVal;
+  const discAmt=calcDiscAmt(dType,dVal,subtotal);
   const total=Math.max(0,subtotal-discAmt);
   const costTotal=S.pendingItems.reduce((a,i)=>a+(i.cost_price||0)*(i.quantity||1),0);
   const margin=total-costTotal;
@@ -760,14 +785,16 @@ async function submitSalesOrder(id,status){
   const notes=document.getElementById('so-notes')?.value.trim()||'';
   const discType=document.getElementById('so-disc-type')?.value||S._soDiscType||'amount';
   const discVal=parseFloat(document.getElementById('so-disc-val')?.value)||0;
+  const warehouseId=S._soWarehouseId||getDefaultWarehouse()?.id||null;
+  const warehouseName=S.warehouses.find(w=>w.id===warehouseId)?.name||'';
   if(S.pendingItems.length===0&&status!=='draft'){toast('제품을 추가하세요','e');return;}
   const subtotal=S.pendingItems.reduce((a,i)=>(a+(i.unit_price||0)*(i.quantity||1)),0);
-  const discAmt=discType==='percent'?subtotal*discVal/100:discVal;
+  const discAmt=calcDiscAmt(discType,discVal,subtotal);
   const total=Math.max(0,subtotal-discAmt);
   const now=new Date().toISOString();
   try{
     let orderId=id;
-    const payload={customer,status,order_type:oType,location_id:locId||null,location_name:locName,sale_date:saleDate,ship_date:shipDate||null,notes,discount_type:discType,discount_value:discVal,total_amount:total,updated_at:now};
+    const payload={customer,status,order_type:oType,location_id:locId||null,location_name:locName,warehouse_id:warehouseId,warehouse_name:warehouseName,sale_date:saleDate,ship_date:shipDate||null,notes,discount_type:discType,discount_value:discVal,total_amount:total,updated_at:now};
     if(!id){
       const no='SO-'+String((S.salesOrders.length+1)).padStart(6,'0');
       const{data,error}=await S.sb.from('sales_orders').insert({...payload,order_no:no,created_by:S.cfg.username,created_at:now}).select().single();
@@ -1375,6 +1402,8 @@ ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS location_id UUID;
 ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS location_name TEXT DEFAULT '';
 ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS discount_type TEXT DEFAULT 'amount';
 ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS discount_value DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS warehouse_id UUID;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS warehouse_name TEXT DEFAULT '';
 -- 창고 테이블
 CREATE TABLE IF NOT EXISTS warehouses (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, name TEXT NOT NULL, is_default BOOLEAN DEFAULT false, notes TEXT DEFAULT '', is_active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now());
 CREATE TABLE IF NOT EXISTS warehouse_stocks (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, product_id UUID REFERENCES products(id) ON DELETE CASCADE, warehouse_id UUID REFERENCES warehouses(id) ON DELETE CASCADE, quantity INTEGER DEFAULT 0, updated_at TIMESTAMPTZ DEFAULT now(), UNIQUE(product_id, warehouse_id));
