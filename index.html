@@ -857,6 +857,7 @@ function showSalesOrderForm(order,keepItems=false){
     S.pendingItems=order?S.salesOrderItems.filter(i=>i.order_id===order.id).map(i=>({...i,cost_price:S.products.find(p=>p.id===i.product_id)?.cost_price||0})):[];
     S._soType=order?.order_type||'sale';
     S._soLocId=order?.location_id||null;
+    S._soCustomer=order?.customer||'';
     S._soDiscType=order?.discount_type||'amount';
     S._soDiscMode=order?.discount_mode||'total';
     S._soDiscVal=order?.discount_value||0;
@@ -880,7 +881,7 @@ function showSalesOrderForm(order,keepItems=false){
     <div class="form-rows" style="margin-bottom:14px;">
       ${oType==='consignment'
         ?`<div class="fr"><span class="fr-label">위탁처 *</span><div class="fr-right" style="cursor:pointer;color:${loc?'var(--text)':'var(--muted)'};font-weight:${loc?'600':'400'};" onclick="showSoLocPicker()">${loc?loc.name:'위탁처 선택 ▼'}</div></div>`
-        :`<div class="fr"><span class="fr-label">고객</span><div class="fr-right">${(()=>{const names=getCustomerNames();return names.length>0?`<select class="fr-input" id="so-customer" style="width:100%;"><option value="">직접 입력</option>${names.map(n=>`<option value="${n}" ${order?.customer===n?'selected':''}>${n}</option>`).join('')}</select><input class="fr-input" id="so-customer-txt" placeholder="직접 입력" value="${order?.customer&&!names.includes(order.customer)?order.customer:''}" style="margin-top:4px;">`:`<input class="fr-input" id="so-customer" placeholder="고객명 입력" value="${order?.customer||''}">`;})()} </div></div>`
+        :`<div class="fr"><span class="fr-label">고객</span><div class="fr-right">${(()=>{const names=getCustomerNames();const cur=S._soCustomer||order?.customer||'';return names.length>0?`<select class="fr-input" id="so-customer" style="width:100%;" onchange="S._soCustomer=this.value"><option value="">직접 입력</option>${names.map(n=>`<option value="${n}" ${cur===n?'selected':''}>${n}</option>`).join('')}</select><input class="fr-input" id="so-customer-txt" placeholder="직접 입력" value="${cur&&!names.includes(cur)?cur:''}" oninput="S._soCustomer=this.value" style="margin-top:4px;">`:`<input class="fr-input" id="so-customer" placeholder="고객명 입력" value="${cur}" oninput="S._soCustomer=this.value">`;})()} </div></div>`
       }
       <div class="fr"><span class="fr-label">출고 창고</span><div class="fr-right" style="cursor:pointer;color:${wh?'var(--text)':'var(--muted)'};font-weight:${wh?'600':'400'};" onclick="showSoWhPicker()">${wh?wh.name+(wh.is_default?' ⭐':''):'창고 선택 ▼'}</div></div>
       <div class="fr"><span class="fr-label">판매일</span><div class="fr-right"><input class="fr-input" type="date" id="so-date" value="${order?.sale_date?.substring(0,10)||today}"></div></div>
@@ -909,7 +910,7 @@ function showSalesOrderForm(order,keepItems=false){
       <div class="row-item" style="background:var(--success-l);"><span class="row-label" style="font-weight:700;color:var(--success);">마진</span><span id="so-margin-disp" style="font-size:14px;font-weight:700;color:var(--success);">₩0</span></div>
     </div>
   `,[
-    {label:'견적서',cls:'btn-secondary',fn:`submitSalesOrder('${order?.id||''}','quote')`},
+    {label:'견적서 저장',cls:'btn-secondary',fn:`submitSalesOrder('${order?.id||''}','quote')`},
     {label:'납품서 저장',cls:'btn-primary',fn:`submitSalesOrder('${order?.id||''}','pending')`},
   ]);
   renderPendingItems('sales');
@@ -1014,7 +1015,7 @@ async function submitSalesOrder(id,status){
   const oType=S._soType||'sale';
   const custSel=document.getElementById('so-customer')?.value.trim()||'';
   const custTxt=document.getElementById('so-customer-txt')?.value.trim()||'';
-  const customer=oType==='sale'?(custSel&&custSel!==''?custSel:custTxt):'';
+  const customer=oType==='sale'?(custSel&&custSel!==''?custSel:custTxt||S._soCustomer||''):'';
   const locId=oType==='consignment'?S._soLocId:null;
   const locName=locId?S.locations.find(l=>l.id===locId)?.name||'':'';
   if(oType==='consignment'&&!locId&&status!=='draft'){toast('위탁처를 선택하세요','e');return;}
