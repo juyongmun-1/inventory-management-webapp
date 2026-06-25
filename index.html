@@ -604,11 +604,12 @@ function go(tab){
     case 'analytics':renderAnalytics();break;
     case 'customers':renderCustomers();break;
     case 'suppliers':renderSuppliers();break;
+    case 'vat':renderVat();break;
   }
 }
 
 function setHdr(tab){
-  const titles={dash:'홈',products:'제품 관리',sales:'납품서',purchase:'발주서',more:'더보기',inout:'입출고',consign:'위탁처',history:'거래 이력',warehouses:'창고 관리',analytics:'매출 현황',customers:'고객 관리',suppliers:'공급처 관리'};
+  const titles={dash:'홈',products:'제품 관리',sales:'납품서',purchase:'발주서',more:'더보기',inout:'입출고',consign:'위탁처',history:'거래 이력',warehouses:'창고 관리',analytics:'매출 현황',customers:'고객 관리',suppliers:'공급처 관리',vat:'부가세 계산기'};
   document.getElementById('hdr-title').textContent=titles[tab]||'';
   const L=document.getElementById('hdr-left');
   const R=document.getElementById('hdr-right');
@@ -1695,6 +1696,7 @@ function renderMore(){
       <div class="section-title">통계 및 분석</div>
       <div class="row-list">
         <div class="row-item" onclick="go('analytics')"><span class="row-label">📊 매출 현황</span><span class="row-arrow">›</span></div>
+        <div class="row-item" onclick="go('vat')"><span class="row-label">🧮 부가세 계산기</span><span class="row-arrow">›</span></div>
       </div>
       <div class="section-title">거래처 관리</div>
       <div class="row-list">
@@ -1982,6 +1984,66 @@ function renderAnalyticsTax(){
       <div class="infobox">⚠️ 세금 추정은 영업이익 기준 단순 계산입니다. 실제 납부세액은 각종 공제·경비에 따라 다릅니다. 세무사 상담을 권장합니다.</div>
     </div>`;
 }
+
+/* ── 부가세 계산기 ── */
+function renderVat(){
+  document.getElementById('content').innerHTML=`
+    <div style="min-height:100%;background:#1a3a8f;padding:24px 20px;color:#fff;">
+      <div style="font-size:22px;font-weight:900;margin-bottom:6px;">부가세 계산</div>
+      <div style="font-size:14px;opacity:.75;margin-bottom:28px;">합계 금액을 알고 계신 고객님</div>
+
+      <div style="margin-bottom:20px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">합계금액 (TOTAL)</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input type="number" id="vat-input" placeholder="금액을 입력하세요"
+            oninput="calcVat()"
+            style="flex:1;padding:16px;background:rgba(255,255,255,0.15);border:none;border-radius:10px;color:#fff;font-size:16px;outline:none;text-align:right;">
+          <span style="font-size:15px;white-space:nowrap;">원</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:28px;">
+        <button onclick="resetVat()" style="padding:14px;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.4);border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">다시 🔄</button>
+        <button onclick="calcVat()" style="padding:14px;background:#fff;border:none;border-radius:10px;color:#1a3a8f;font-size:15px;font-weight:700;cursor:pointer;">확인</button>
+      </div>
+
+      <div style="height:1px;background:rgba(255,255,255,0.2);margin-bottom:28px;"></div>
+
+      <div style="margin-bottom:20px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">공급가액 (VALUE OF SUPPLY)</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div id="vat-supply" style="flex:1;padding:16px;background:rgba(255,255,255,0.15);border-radius:10px;font-size:18px;font-weight:700;text-align:right;color:rgba(255,255,255,0.5);min-height:54px;">00,000,000</div>
+          <span style="font-size:15px;white-space:nowrap;">원</span>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">부가세액 (TAX)</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div id="vat-tax" style="flex:1;padding:16px;background:rgba(255,255,255,0.25);border-radius:10px;font-size:18px;font-weight:700;text-align:right;color:rgba(255,255,255,0.5);min-height:54px;">00,000,000</div>
+          <span style="font-size:15px;white-space:nowrap;">원</span>
+        </div>
+      </div>
+    </div>`;
+}
+window.calcVat=function(){
+  const val=parseFloat(document.getElementById('vat-input')?.value)||0;
+  const supply=Math.round(val/1.1);
+  const tax=val-supply;
+  const fmt=n=>n>0?Number(n).toLocaleString():'00,000,000';
+  const col=n=>n>0?'#fff':'rgba(255,255,255,0.4)';
+  const s=document.getElementById('vat-supply');const t=document.getElementById('vat-tax');
+  if(s){s.textContent=fmt(supply);s.style.color=col(supply);}
+  if(t){t.textContent=fmt(tax);t.style.color=col(tax);}
+};
+window.resetVat=function(){
+  const inp=document.getElementById('vat-input');
+  if(inp)inp.value='';
+  const s=document.getElementById('vat-supply');const t=document.getElementById('vat-tax');
+  if(s){s.textContent='00,000,000';s.style.color='rgba(255,255,255,0.4)';}
+  if(t){t.textContent='00,000,000';t.style.color='rgba(255,255,255,0.4)';}
+  inp?.focus();
+};
 
 function openSettings(){
   const labels=getTypeLabels();const cats=getCategories();const clsfs=getClassifications();
