@@ -386,11 +386,12 @@ function go(tab){
     case 'consign':renderConsign();break;
     case 'history':renderHistory();break;
     case 'warehouses':renderWarehouses();break;
+    case 'analytics':renderAnalytics();break;
   }
 }
 
 function setHdr(tab){
-  const titles={dash:'홈',products:'제품 관리',sales:'납품서',purchase:'발주서',more:'더보기',inout:'입출고',consign:'위탁처',history:'거래 이력',warehouses:'창고 관리'};
+  const titles={dash:'홈',products:'제품 관리',sales:'납품서',purchase:'발주서',more:'더보기',inout:'입출고',consign:'위탁처',history:'거래 이력',warehouses:'창고 관리',analytics:'매출 현황'};
   document.getElementById('hdr-title').textContent=titles[tab]||'';
   const L=document.getElementById('hdr-left');
   const R=document.getElementById('hdr-right');
@@ -596,14 +597,15 @@ async function completeSalesOrder(id){
   try{
     for(const item of items){
       if(!item.product_id)continue;
+      const whId=o.warehouse_id||getDefaultWarehouse()?.id;
       if(isCS){
-        await recordTx({product_id:item.product_id,type:'send_consignment',quantity:item.quantity,location_id:o.location_id,notes:`납품서 ${o.order_no}`});
+        await recordTx({product_id:item.product_id,type:'send_consignment',quantity:item.quantity,warehouse_id:whId,location_id:o.location_id,notes:`납품서 ${o.order_no}`});
       }else{
-        await recordTx({product_id:item.product_id,type:'out',quantity:item.quantity,warehouse_id:o.warehouse_id||getDefaultWarehouse()?.id,notes:`납품서 ${o.order_no}`});
+        await recordTx({product_id:item.product_id,type:'out',quantity:item.quantity,warehouse_id:whId,notes:`납품서 ${o.order_no}`});
       }
     }
     await S.sb.from('sales_orders').update({status:'completed',updated_at:new Date().toISOString()}).eq('id',id);
-    await loadSalesOrders();await loadProducts();await loadCstocks();
+    await loadSalesOrders();await loadProducts();await loadCstocks();await loadWarehouseStocks();
     closeModal();toast('출고 완료 처리되었습니다','s');
     if(S.tab==='sales')renderSales();else if(S.tab==='dash')renderDash();
   }catch(e){toast('오류: '+e.message,'e');}
@@ -1341,6 +1343,10 @@ function renderHistory(){
 function renderMore(){
   document.getElementById('content').innerHTML=`
     <div style="padding:16px 0;">
+      <div class="section-title">통계 및 분석</div>
+      <div class="row-list">
+        <div class="row-item" onclick="go('analytics')"><span class="row-label">📊 매출 현황</span><span class="row-arrow">›</span></div>
+      </div>
       <div class="section-title">재고 관리</div>
       <div class="row-list">
         <div class="row-item" onclick="go('warehouses')"><span class="row-label">🏭 창고 관리</span><span class="row-arrow">›</span></div>
@@ -1354,6 +1360,61 @@ function renderMore(){
         <div class="row-item" onclick="refreshAll()"><span class="row-label">🔄 데이터 새로고침</span><span class="row-arrow">›</span></div>
       </div>
       <div style="padding:20px 16px;text-align:center;color:var(--muted);font-size:12px;">재고 관리 v2.0</div>
+    </div>
+  `;
+}
+
+/* ── 매출 현황 ── */
+function renderAnalytics(){
+  const period=S.analyticsPeriod||'month';
+  const now=new Date();
+  const orders=S.salesOrders.filter(o=>{
+    if(o.status!=='completed')return false;
+    const d=new Date(o.created_at);
+    if(period==='month')return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();
+    if(period==='year')return d.getFullYear()===now.getFullYear();
+    return true;
+  });
+  const items=orders.flatMap(o=>S.salesOrderItems.filter(i=>i.order_id===o.id).map(i=>({...i,order:o})));
+  const totalRev=orders.reduce((a,o)=>a+Number(o.total_amount||0),0);
+  const totalQty=items.reduce((a,i)=>a+i.quantity,0);
+
+  // 품목별
+  const byProd={};
+  items.forEach(i=>{
+    if(!byProd[i.product_name])byProd[i.product_name]={qty:0,rev:0};
+    byProd[i.product_name].qty+=i.quantity;
+    byProd[i.product_name].rev+=(i.unit_price||0)*i.quantity;
+  });
+  const prodRows=Object.entries(byProd).sort((a,b)=>b[1].rev-a[1].rev)
+    .map(([name,v])=>`<div class="row-item"><div><div style="font-weight:600;">${name}</div><div style="font-size:12px;color:var(--muted);">${v.qty}개</div></div><span class="row-value set">₩${Number(v.rev).toLocaleString()}</span></div>`).join('');
+
+  // 판매처별
+  const byDest={};
+  orders.forEach(o=>{
+    const dest=o.order_type==='consignment'?(o.location_name||'위탁처 미지정'):(o.customer||'고객 미지정');
+    if(!byDest[dest])byDest[dest]={cnt:0,rev:0};
+    byDest[dest].cnt++;byDest[dest].rev+=Number(o.total_amount||0);
+  });
+  const destRows=Object.entries(byDest).sort((a,b)=>b[1].rev-a[1].rev)
+    .map(([dest,v])=>`<div class="row-item"><div><div style="font-weight:600;">${dest}</div><div style="font-size:12px;color:var(--muted);">${v.cnt}건</div></div><span class="row-value set">₩${Number(v.rev).toLocaleString()}</span></div>`).join('');
+
+  const periodLabel={'month':'이번 달','year':'올해','all':'전체'};
+  document.getElementById('content').innerHTML=`
+    <div style="padding:16px;">
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        ${['month','year','all'].map(p=>`<button class="btn ${period===p?'btn-primary':'btn-secondary'}" style="flex:1;padding:8px 0;font-size:13px;" onclick="S.analyticsPeriod='${p}';renderAnalytics()">${periodLabel[p]}</button>`).join('')}
+      </div>
+      <div style="background:var(--primary);border-radius:16px;padding:20px;color:#fff;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div><div style="font-size:11px;opacity:.75;">총 매출</div><div style="font-size:24px;font-weight:900;">₩${Number(totalRev).toLocaleString()}</div></div>
+        <div><div style="font-size:11px;opacity:.75;">총 판매량</div><div style="font-size:24px;font-weight:900;">${totalQty}개</div></div>
+        <div><div style="font-size:11px;opacity:.75;">납품서 수</div><div style="font-size:20px;font-weight:700;">${orders.length}건</div></div>
+        <div><div style="font-size:11px;opacity:.75;">품목 수</div><div style="font-size:20px;font-weight:700;">${Object.keys(byProd).length}종</div></div>
+      </div>
+      <div class="section-title">품목별 매출</div>
+      ${prodRows?`<div class="row-list">${prodRows}</div>`:'<div style="color:var(--muted);text-align:center;padding:20px;font-size:14px;">데이터 없음</div>'}
+      <div class="section-title">판매처별 매출</div>
+      ${destRows?`<div class="row-list">${destRows}</div>`:'<div style="color:var(--muted);text-align:center;padding:20px;font-size:14px;">데이터 없음</div>'}
     </div>
   `;
 }
