@@ -262,7 +262,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="bnav">
     <button class="bnav-item active" id="nav-dash" onclick="go('dash')"><span class="bnav-icon">🏠</span><span class="bnav-label">홈</span></button>
     <button class="bnav-item" id="nav-products" onclick="go('products')"><span class="bnav-icon">📦</span><span class="bnav-label">제품</span></button>
-    <button class="bnav-item" id="nav-sales" onclick="go('sales')"><span class="bnav-icon">🧾</span><span class="bnav-label">판매서</span></button>
+    <button class="bnav-item" id="nav-sales" onclick="go('sales')"><span class="bnav-icon">🧾</span><span class="bnav-label">납품서</span></button>
     <button class="bnav-item" id="nav-consign" onclick="go('consign')"><span class="bnav-icon">🚚</span><span class="bnav-label">위탁처</span></button>
     <button class="bnav-item" id="nav-more" onclick="go('more')"><span class="bnav-icon">⋯</span><span class="bnav-label">더보기</span></button>
   </div>
@@ -390,7 +390,7 @@ function go(tab){
 }
 
 function setHdr(tab){
-  const titles={dash:'홈',products:'제품 관리',sales:'판매서',purchase:'발주서',more:'더보기',inout:'입출고',consign:'위탁처',history:'거래 이력',warehouses:'창고 관리'};
+  const titles={dash:'홈',products:'제품 관리',sales:'납품서',purchase:'발주서',more:'더보기',inout:'입출고',consign:'위탁처',history:'거래 이력',warehouses:'창고 관리'};
   document.getElementById('hdr-title').textContent=titles[tab]||'';
   const L=document.getElementById('hdr-left');
   const R=document.getElementById('hdr-right');
@@ -498,7 +498,7 @@ function renderDash(){
       </div>
     </div>
     ${lowStock.length>0?`<div class="section-title">⚠️ 재고 부족</div><div class="row-list">${lowStock.slice(0,3).map(p=>`<div class="row-item" onclick="go('products');showProductDetail('${p.id}')"><span class="row-label">${p.name}</span><span class="row-value">${getTotalStock(p)}개 <span class="badge badge-danger">부족</span></span></div>`).join('')}</div>`:''}
-    <div class="section-title">📋 최근 판매서</div>
+    <div class="section-title">📋 최근 납품서</div>
     <div class="row-list">
       ${recentSales.length===0?'<div class="row-item"><span class="row-muted" style="color:var(--muted);font-size:14px;">판매서가 없습니다</span></div>':recentSales.map(o=>{
         const items=S.salesOrderItems.filter(i=>i.order_id===o.id);
@@ -511,11 +511,11 @@ function renderDash(){
           <div class="order-total">₩${Number(o.total_amount||0).toLocaleString()}</div>
         </div>`;
       }).join('')}
-      <div class="row-item" onclick="go('sales')"><span style="color:var(--primary);font-size:14px;font-weight:600;">전체 판매서 보기</span><span class="row-arrow">›</span></div>
+      <div class="row-item" onclick="go('sales')"><span style="color:var(--primary);font-size:14px;font-weight:600;">전체 납품서 보기</span><span class="row-arrow">›</span></div>
     </div>
     <div class="section-title">빠른 실행</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 16px;">
-      <button class="btn btn-primary" onclick="showSalesOrderForm(null)">🧾 판매서 작성</button>
+      <button class="btn btn-primary" onclick="showSalesOrderForm(null)">🧾 납품서 작성</button>
       <button class="btn btn-outline" onclick="showPurchaseOrderForm(null)">📋 발주서 작성</button>
       <button class="btn btn-secondary" onclick="go('inout')">↕️ 입출고</button>
       <button class="btn btn-secondary" onclick="go('history')">📋 거래이력</button>
@@ -523,60 +523,80 @@ function renderDash(){
   `;
 }
 
-/* ── 판매서 상태 ── */
+/* ── 납품서 상태 ── */
 function soStatusLabel(s){return{draft:'임시저장',pending:'출고대기',partial:'부분출고',completed:'출고완료'}[s]||s;}
 function soStatusBadge(s){return{draft:'badge-gray',pending:'badge-warning',partial:'badge-primary',completed:'badge-success'}[s]||'badge-gray';}
+function soTypeLabel(t){return t==='consignment'?'🚚 위탁':'🛒 판매';}
 function poStatusLabel(s){return{draft:'임시저장',ordered:'발주완료',partial:'부분입고',completed:'입고완료'}[s]||s;}
 function poStatusBadge(s){return{draft:'badge-gray',ordered:'badge-primary',partial:'badge-warning',completed:'badge-success'}[s]||'badge-gray';}
 
-/* ── 판매서 목록 ── */
+/* ── 납품서 목록 ── */
 function renderSales(){
   const f=S.salesFilter;
   const filtered=f==='all'?S.salesOrders:S.salesOrders.filter(o=>o.status===f);
   document.getElementById('content').innerHTML=`
     <div class="status-tabs">
-      ${[['all','전체'],['draft','임시저장'],['pending','출고대기'],['partial','부분출고'],['completed','출고완료']].map(([v,l])=>`<div class="stab ${f===v?'active':''}" onclick="S.salesFilter='${v}';renderSales()">${l}</div>`).join('')}
+      ${[['all','전체'],['draft','임시저장'],['pending','출고대기'],['completed','출고완료']].map(([v,l])=>`<div class="stab ${f===v?'active':''}" onclick="S.salesFilter='${v}';renderSales()">${l}</div>`).join('')}
     </div>
     <div style="height:12px;"></div>
-    ${filtered.length===0?`<div class="empty"><div class="icon">🧾</div><p>판매서가 없습니다<br>+ 버튼으로 작성하세요</p></div>`:`<div class="row-list">${filtered.map(o=>{const items=S.salesOrderItems.filter(i=>i.order_id===o.id);return`<div class="order-card" onclick="showSalesOrderDetail('${o.id}')"><div style="display:flex;align-items:center;justify-content:space-between;"><div class="order-no">${o.order_no}</div><span class="badge ${soStatusBadge(o.status)}">${soStatusLabel(o.status)}</span></div><div class="order-meta">${fmtDate(o.created_at)} · ${o.customer||'고객 미지정'} · ${items.length}품목</div><div class="order-total">₩${Number(o.total_amount||0).toLocaleString()}</div></div>`;}).join('')}</div>`}
+    ${filtered.length===0?`<div class="empty"><div class="icon">🧾</div><p>납품서가 없습니다<br>+ 버튼으로 작성하세요</p></div>`:`<div class="row-list">${filtered.map(o=>{const items=S.salesOrderItems.filter(i=>i.order_id===o.id);const dest=o.order_type==='consignment'?(o.location_name||'위탁처 미지정'):(o.customer||'고객 미지정');return`<div class="order-card" onclick="showSalesOrderDetail('${o.id}')"><div style="display:flex;align-items:center;justify-content:space-between;"><div class="order-no">${o.order_no} <span style="font-size:10px;font-weight:600;color:var(--muted);">${soTypeLabel(o.order_type)}</span></div><span class="badge ${soStatusBadge(o.status)}">${soStatusLabel(o.status)}</span></div><div class="order-meta">${fmtDate(o.created_at)} · ${dest} · ${items.length}품목</div><div class="order-total">₩${Number(o.total_amount||0).toLocaleString()}</div></div>`;}).join('')}</div>`}
   `;
 }
 
-/* ── 판매서 상세 ── */
+/* ── 납품서 상세 ── */
 function showSalesOrderDetail(id){
   const o=S.salesOrders.find(x=>x.id===id);if(!o)return;
   const items=S.salesOrderItems.filter(i=>i.order_id===id);
+  const subtotal=items.reduce((a,i)=>a+(i.unit_price||0)*(i.quantity||1),0);
+  const discAmt=o.discount_type==='percent'?subtotal*(o.discount_value||0)/100:(o.discount_value||0);
+  const total=subtotal-discAmt;
+  const costTotal=items.reduce((a,i)=>{const p=S.products.find(x=>x.id===i.product_id);return a+(p?.cost_price||0)*(i.quantity||1);},0);
+  const margin=total-costTotal;
+  const marginPct=total>0?((margin/total)*100).toFixed(1):0;
+  const isDone=o.status==='completed';
   showModal(o.order_no,`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
       <span class="badge ${soStatusBadge(o.status)}" style="font-size:13px;padding:5px 12px;">${soStatusLabel(o.status)}</span>
+      <span style="font-size:13px;color:var(--muted);">${soTypeLabel(o.order_type)}</span>
     </div>
     <div class="row-list" style="margin:0 0 14px;">
-      ${o.customer?`<div class="row-item"><span class="row-label">고객</span><span class="row-value set">${o.customer}</span></div>`:''}
+      ${o.order_type==='consignment'?`<div class="row-item"><span class="row-label">위탁처</span><span class="row-value set">${o.location_name||'-'}</span></div>`:`${o.customer?`<div class="row-item"><span class="row-label">고객</span><span class="row-value set">${o.customer}</span></div>`:''}`}
       <div class="row-item"><span class="row-label">판매일</span><span class="row-value set">${fmtDate(o.sale_date||o.created_at)}</span></div>
       ${o.ship_date?`<div class="row-item"><span class="row-label">출고 예정일</span><span class="row-value set">${fmtDate(o.ship_date)}</span></div>`:''}
       ${o.notes?`<div class="row-item"><span class="row-label">메모</span><span class="row-value set">${o.notes}</span></div>`:''}
     </div>
-    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">제품 목록</div>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;">제품 목록</div>
     <div class="row-list" style="margin:0 0 14px;">
-      ${items.map(i=>`<div class="row-item"><div><div style="font-size:14px;font-weight:700;">${i.product_name}</div><div style="font-size:12px;color:var(--muted);">${i.product_code} · ${i.quantity}개</div></div><span class="row-value set">₩${Number((i.unit_price||0)*i.quantity).toLocaleString()}</span></div>`).join('')}
-      <div class="row-item" style="background:var(--primary-l);"><span class="row-label" style="font-weight:700;">합계</span><span class="row-value set" style="font-size:17px;color:var(--primary);">₩${Number(o.total_amount||0).toLocaleString()}</span></div>
+      ${items.map(i=>{const p=S.products.find(x=>x.id===i.product_id);const m=(i.unit_price||0)-(p?.cost_price||0);return`<div class="row-item"><div><div style="font-size:14px;font-weight:700;">${i.product_name}</div><div style="font-size:12px;color:var(--muted);">${i.quantity}개 · 단가 ₩${Number(i.unit_price||0).toLocaleString()} · 마진 ₩${Number(m).toLocaleString()}/개</div></div><span class="row-value set">₩${Number((i.unit_price||0)*i.quantity).toLocaleString()}</span></div>`;}).join('')}
+      ${discAmt>0?`<div class="row-item"><span class="row-label">소계</span><span class="row-value set">₩${Number(subtotal).toLocaleString()}</span></div><div class="row-item"><span class="row-label" style="color:var(--danger);">할인 ${o.discount_type==='percent'?o.discount_value+'%':'금액'}</span><span class="row-value set" style="color:var(--danger);">-₩${Number(discAmt).toLocaleString()}</span></div>`:''}
+      <div class="row-item" style="background:var(--primary-l);"><span class="row-label" style="font-weight:700;">합계</span><span class="row-value set" style="font-size:17px;color:var(--primary);">₩${Number(total).toLocaleString()}</span></div>
+      <div class="row-item" style="background:var(--success-l);"><span class="row-label" style="font-weight:700;color:var(--success);">마진</span><span class="row-value set" style="font-size:15px;color:var(--success);">₩${Number(margin).toLocaleString()} (${marginPct}%)</span></div>
     </div>
-    ${o.status==='draft'||o.status==='pending'?`<button class="btn btn-success" style="margin-bottom:8px;" onclick="completeSalesOrder('${id}')">✅ 출고 완료 처리 (재고 차감)</button>`:''}
-    ${o.status==='draft'?`<button class="btn btn-primary" style="margin-bottom:8px;" onclick="closeModal();showSalesOrderForm(S.salesOrders.find(x=>x.id==='${id}'))">✏️ 수정</button>`:''}
+    ${!isDone?`<button class="btn btn-success" style="margin-bottom:8px;" onclick="completeSalesOrder('${id}')">✅ 출고 완료 처리</button>`:''}
+    ${!isDone?`<button class="btn btn-primary" style="margin-bottom:8px;" onclick="closeModal();showSalesOrderForm(S.salesOrders.find(x=>x.id==='${id}'))">✏️ 수정</button>`:''}
     <button class="btn btn-danger" onclick="deleteSalesOrder('${id}')">삭제</button>
   `);
 }
 
-/* ── 판매서 출고 완료 ── */
+/* ── 납품서 출고 완료 ── */
 async function completeSalesOrder(id){
-  if(!confirm('출고 완료 처리하면 재고가 차감됩니다. 진행하시겠습니까?'))return;
+  const o=S.salesOrders.find(x=>x.id===id);if(!o)return;
+  const isCS=o.order_type==='consignment';
+  if(isCS&&!o.location_id){toast('위탁처가 지정되지 않았습니다','e');return;}
+  const msg=isCS?'위탁처로 재고가 이동됩니다. 진행하시겠습니까?':'재고가 차감됩니다. 진행하시겠습니까?';
+  if(!confirm(msg))return;
   const items=S.salesOrderItems.filter(i=>i.order_id===id);
   try{
     for(const item of items){
-      if(item.product_id)await recordTx({product_id:item.product_id,type:'out',quantity:item.quantity,notes:`판매서 ${S.salesOrders.find(o=>o.id===id)?.order_no||''}`});
+      if(!item.product_id)continue;
+      if(isCS){
+        await recordTx({product_id:item.product_id,type:'send_consignment',quantity:item.quantity,location_id:o.location_id,notes:`납품서 ${o.order_no}`});
+      }else{
+        await recordTx({product_id:item.product_id,type:'out',quantity:item.quantity,warehouse_id:S.txWarehouse?.id||getDefaultWarehouse()?.id,notes:`납품서 ${o.order_no}`});
+      }
     }
     await S.sb.from('sales_orders').update({status:'completed',updated_at:new Date().toISOString()}).eq('id',id);
-    await loadSalesOrders();await loadProducts();
+    await loadSalesOrders();await loadProducts();await loadCstocks();
     closeModal();toast('출고 완료 처리되었습니다','s');
     if(S.tab==='sales')renderSales();else if(S.tab==='dash')renderDash();
   }catch(e){toast('오류: '+e.message,'e');}
@@ -590,52 +610,105 @@ async function deleteSalesOrder(id){
   toast('삭제되었습니다','s');
 }
 
-/* ── 판매서 작성 폼 ── */
+/* ── 납품서 작성 폼 ── */
 function showSalesOrderForm(order,keepItems=false){
-  if(!keepItems)S.pendingItems=order?S.salesOrderItems.filter(i=>i.order_id===order.id).map(i=>({...i})):[];
+  if(!keepItems){
+    S.pendingItems=order?S.salesOrderItems.filter(i=>i.order_id===order.id).map(i=>({...i,cost_price:S.products.find(p=>p.id===i.product_id)?.cost_price||0})):[];
+    S._soType=order?.order_type||'sale';
+    S._soLocId=order?.location_id||null;
+    S._soDiscType=order?.discount_type||'amount';
+    S._soDiscVal=order?.discount_value||0;
+  }
   S.soEditOrder=order??null;
   const isEdit=!!order;
-  showModal(isEdit?'판매서 수정':'판매서 작성',`
-    <div class="form-rows" style="margin-bottom:14px;">
-      <div class="fr"><span class="fr-label">고객</span><div class="fr-right"><input class="fr-input" id="so-customer" placeholder="고객명 입력" value="${order?.customer||''}"></div></div>
-      <div class="fr"><span class="fr-label">판매일</span><div class="fr-right"><input class="fr-input" type="date" id="so-date" value="${(order?.sale_date||order?.created_at||new Date().toISOString()).substring(0,10)}"></div></div>
-      <div class="fr"><span class="fr-label">출고 예정일</span><div class="fr-right"><input class="fr-input" type="date" id="so-ship" value="${order?.ship_date?.substring(0,10)||''}"></div></div>
-      <div class="fr"><span class="fr-label">메모</span><div class="fr-right"><input class="fr-input" id="so-notes" placeholder="작성" value="${order?.notes||''}"></div></div>
+  const oType=S._soType||'sale';
+  const loc=S.locations.find(l=>l.id===S._soLocId);
+  const discType=S._soDiscType||'amount';
+  const discVal=S._soDiscVal||0;
+  const today=new Date().toISOString().substring(0,10);
+  showModal(isEdit?'납품서 수정':'납품서 작성',`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+      <button class="btn ${oType==='sale'?'btn-primary':'btn-secondary'}" onclick="setSoType('sale')">🛒 판매</button>
+      <button class="btn ${oType==='consignment'?'btn-primary':'btn-secondary'}" onclick="setSoType('consignment')">🚚 위탁</button>
     </div>
-    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">제품</div>
+    <div class="form-rows" style="margin-bottom:14px;">
+      ${oType==='consignment'
+        ?`<div class="fr"><span class="fr-label">위탁처 *</span><div class="fr-right" style="cursor:pointer;color:${loc?'var(--text)':'var(--muted)'};font-weight:${loc?'600':'400'};" onclick="showSoLocPicker()">${loc?loc.name:'위탁처 선택 ▼'}</div></div>`
+        :`<div class="fr"><span class="fr-label">고객</span><div class="fr-right"><input class="fr-input" id="so-customer" placeholder="고객명 입력" value="${order?.customer||''}"></div></div>`
+      }
+      <div class="fr"><span class="fr-label">판매일</span><div class="fr-right"><input class="fr-input" type="date" id="so-date" value="${order?.sale_date?.substring(0,10)||today}"></div></div>
+      <div class="fr"><span class="fr-label">출고 예정일</span><div class="fr-right"><input class="fr-input" type="date" id="so-ship" value="${order?.ship_date?.substring(0,10)||''}"></div></div>
+      <div class="fr"><span class="fr-label">메모</span><div class="fr-right"><input class="fr-input" id="so-notes" placeholder="메모" value="${order?.notes||''}"></div></div>
+    </div>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;">제품</div>
     <div id="so-items-wrap"></div>
-    <button class="btn btn-outline" style="margin-bottom:14px;" onclick="openAddItemModal('sales')">+ 제품 추가</button>
-    <div style="background:var(--primary-l);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:14px;font-weight:700;color:var(--primary-d);">합계</span>
-      <span style="font-size:18px;font-weight:900;color:var(--primary);" id="so-total-display">₩0</span>
+    <button class="btn btn-outline" style="margin-bottom:12px;" onclick="openAddItemModal('sales')">+ 제품 추가</button>
+    <div class="form-rows" style="margin-bottom:12px;">
+      <div class="fr"><span class="fr-label">할인</span><div class="fr-right" style="display:flex;gap:6px;">
+        <select id="so-disc-type" onchange="S._soDiscType=this.value;recalcSo()" style="width:90px;padding:6px;border:1.5px solid var(--border2);border-radius:8px;font-size:13px;">
+          <option value="amount" ${discType==='amount'?'selected':''}>금액</option>
+          <option value="percent" ${discType==='percent'?'selected':''}>%</option>
+        </select>
+        <input type="number" id="so-disc-val" value="${discVal||''}" placeholder="0" min="0" style="flex:1;padding:6px 10px;border:1.5px solid var(--border2);border-radius:8px;font-size:14px;" oninput="S._soDiscVal=parseFloat(this.value)||0;recalcSo()">
+      </div></div>
+    </div>
+    <div class="row-list" style="margin:0 0 4px;" id="so-summary">
+      <div class="row-item"><span class="row-label">소계</span><span class="row-value set" id="so-subtotal-disp">₩0</span></div>
+      <div class="row-item"><span class="row-label" style="color:var(--danger);">할인</span><span class="row-value set" style="color:var(--danger);" id="so-disc-disp">-₩0</span></div>
+      <div class="row-item" style="background:var(--primary-l);"><span class="row-label" style="font-weight:700;">합계</span><span id="so-total-display" style="font-size:17px;font-weight:900;color:var(--primary);">₩0</span></div>
+      <div class="row-item" style="background:var(--success-l);"><span class="row-label" style="font-weight:700;color:var(--success);">마진</span><span id="so-margin-disp" style="font-size:14px;font-weight:700;color:var(--success);">₩0</span></div>
     </div>
   `,[
     {label:'임시저장',cls:'btn-secondary',fn:`submitSalesOrder('${order?.id||''}','draft')`},
-    {label:isEdit?'저장':'저장',cls:'btn-primary',fn:`submitSalesOrder('${order?.id||''}','pending')`},
+    {label:'저장',cls:'btn-primary',fn:`submitSalesOrder('${order?.id||''}','pending')`},
   ]);
   renderPendingItems('sales');
+}
+window.setSoType=function(t){S._soType=t;showSalesOrderForm(S.soEditOrder,true);};
+window.showSoLocPicker=function(){
+  if(!S.locations.length){toast('위탁처를 먼저 추가하세요','e');return;}
+  showModal('위탁처 선택',`<div>${S.locations.map(loc=>`<div class="sitem" onclick="S._soLocId='${loc.id}';showSalesOrderForm(S.soEditOrder,true)"><div class="sitem-name">${loc.name}</div></div>`).join('')}</div>`);
+};
+function recalcSo(){
+  const subtotal=S.pendingItems.reduce((a,i)=>a+(i.unit_price||0)*(i.quantity||1),0);
+  const dType=document.getElementById('so-disc-type')?.value||S._soDiscType||'amount';
+  const dVal=parseFloat(document.getElementById('so-disc-val')?.value)||0;
+  const discAmt=dType==='percent'?subtotal*dVal/100:dVal;
+  const total=Math.max(0,subtotal-discAmt);
+  const costTotal=S.pendingItems.reduce((a,i)=>a+(i.cost_price||0)*(i.quantity||1),0);
+  const margin=total-costTotal;
+  const mpct=total>0?(margin/total*100).toFixed(1):0;
+  const el=id=>document.getElementById(id);
+  if(el('so-subtotal-disp'))el('so-subtotal-disp').textContent='₩'+subtotal.toLocaleString();
+  if(el('so-disc-disp'))el('so-disc-disp').textContent='-₩'+Math.round(discAmt).toLocaleString();
+  if(el('so-total-display'))el('so-total-display').textContent='₩'+Math.round(total).toLocaleString();
+  if(el('so-margin-disp'))el('so-margin-disp').textContent='₩'+Math.round(margin).toLocaleString()+` (${mpct}%)`;
 }
 
 function renderPendingItems(type){
   const wrap=document.getElementById(`${type==='sales'?'so':'po'}-items-wrap`);
   if(!wrap)return;
-  const totalEl=document.getElementById(`${type==='sales'?'so':'po'}-total-display`);
-  let total=0;
   wrap.innerHTML=S.pendingItems.length===0
     ?'<div style="text-align:center;color:var(--muted);padding:16px;font-size:14px;">제품을 추가하세요</div>'
     :S.pendingItems.map((item,i)=>{
-      const subtotal=(item.unit_price||0)*(item.quantity||1);
-      total+=subtotal;
-      return`<div class="order-item-row" style="border-radius:${i===0?'12px 12px':'0'} ${i===S.pendingItems.length-1?'0 12px 12px':'0 0 0'};margin-bottom:2px;">
-        <div class="oi-name"><div>${item.product_name}</div><div class="oi-sub">${item.product_code} · ₩${Number(item.unit_price||0).toLocaleString()}</div></div>
+      const sub=(item.unit_price||0)*(item.quantity||1);
+      const margin=type==='sales'?((item.unit_price||0)-(item.cost_price||0))*(item.quantity||1):null;
+      return`<div class="order-item-row" style="margin-bottom:2px;">
+        <div class="oi-name">
+          <div>${item.product_name}</div>
+          <div class="oi-sub">₩${Number(item.unit_price||0).toLocaleString()}${margin!==null?` · 마진 ₩${Number(margin).toLocaleString()}`:''}</div>
+        </div>
         <div class="oi-qty"><input type="number" value="${item.quantity||1}" min="1" onchange="updatePendingItem(${i},'quantity',parseInt(this.value)||1,'${type}')"></div>
-        <div class="oi-price">₩${Number(subtotal).toLocaleString()}</div>
+        <div class="oi-price">₩${Number(sub).toLocaleString()}</div>
         <button class="oi-del" onclick="removePendingItem(${i},'${type}')">×</button>
       </div>`;
     }).join('');
-  if(totalEl)totalEl.textContent='₩'+total.toLocaleString();
-  // update total in pending
-  S._pendingTotal=total;
+  if(type==='sales')recalcSo();
+  else{
+    const total=S.pendingItems.reduce((a,i)=>a+(i.unit_price||0)*(i.quantity||1),0);
+    const el=document.getElementById('po-total-display');
+    if(el)el.textContent='₩'+total.toLocaleString();
+  }
 }
 
 window.updatePendingItem=function(i,field,val,type){S.pendingItems[i][field]=val;renderPendingItems(type);};
@@ -671,27 +744,36 @@ window.addPendingItem=function(productId,type){
   const p=S.products.find(x=>x.id===productId);if(!p)return;
   const exists=S.pendingItems.find(i=>i.product_id===productId);
   if(exists){exists.quantity++;}
-  else{S.pendingItems.push({product_id:p.id,product_name:p.name,product_code:p.code,quantity:1,unit_price:p.unit_price||0});}
+  else{S.pendingItems.push({product_id:p.id,product_name:p.name,product_code:p.code,quantity:1,unit_price:p.unit_price||0,cost_price:p.cost_price||0});}
   if(type==='sales')showSalesOrderForm(S.soEditOrder,true);
   else showPurchaseOrderForm(S.poEditOrder,true);
 };
 
 async function submitSalesOrder(id,status){
-  const customer=document.getElementById('so-customer')?.value.trim()||'';
+  const oType=S._soType||'sale';
+  const customer=oType==='sale'?(document.getElementById('so-customer')?.value.trim()||''):'';
+  const locId=oType==='consignment'?S._soLocId:null;
+  const locName=locId?S.locations.find(l=>l.id===locId)?.name||'':'';
+  if(oType==='consignment'&&!locId&&status!=='draft'){toast('위탁처를 선택하세요','e');return;}
   const saleDate=document.getElementById('so-date')?.value||new Date().toISOString().substring(0,10);
   const shipDate=document.getElementById('so-ship')?.value||null;
   const notes=document.getElementById('so-notes')?.value.trim()||'';
+  const discType=document.getElementById('so-disc-type')?.value||S._soDiscType||'amount';
+  const discVal=parseFloat(document.getElementById('so-disc-val')?.value)||0;
   if(S.pendingItems.length===0&&status!=='draft'){toast('제품을 추가하세요','e');return;}
-  const total=S.pendingItems.reduce((a,i)=>(a+(i.unit_price||0)*(i.quantity||1)),0);
+  const subtotal=S.pendingItems.reduce((a,i)=>(a+(i.unit_price||0)*(i.quantity||1)),0);
+  const discAmt=discType==='percent'?subtotal*discVal/100:discVal;
+  const total=Math.max(0,subtotal-discAmt);
   const now=new Date().toISOString();
   try{
     let orderId=id;
+    const payload={customer,status,order_type:oType,location_id:locId||null,location_name:locName,sale_date:saleDate,ship_date:shipDate||null,notes,discount_type:discType,discount_value:discVal,total_amount:total,updated_at:now};
     if(!id){
       const no='SO-'+String((S.salesOrders.length+1)).padStart(6,'0');
-      const{data,error}=await S.sb.from('sales_orders').insert({order_no:no,customer,status,sale_date:saleDate,ship_date:shipDate||null,notes,total_amount:total,created_by:S.cfg.username,created_at:now,updated_at:now}).select().single();
+      const{data,error}=await S.sb.from('sales_orders').insert({...payload,order_no:no,created_by:S.cfg.username,created_at:now}).select().single();
       if(error)throw error;orderId=data.id;
     }else{
-      const{error}=await S.sb.from('sales_orders').update({customer,status,sale_date:saleDate,ship_date:shipDate||null,notes,total_amount:total,updated_at:now}).eq('id',id);
+      const{error}=await S.sb.from('sales_orders').update(payload).eq('id',id);
       if(error)throw error;
       await S.sb.from('sales_order_items').delete().eq('order_id',id);
     }
@@ -701,7 +783,7 @@ async function submitSalesOrder(id,status){
     }
     await loadSalesOrders();closeModal();
     if(S.tab==='sales')renderSales();else if(S.tab==='dash')renderDash();
-    toast(status==='draft'?'임시저장됨':'판매서 저장됨','s');
+    toast(status==='draft'?'임시저장됨':'납품서 저장됨','s');
   }catch(e){toast('오류: '+e.message,'e');}
 }
 
@@ -1285,8 +1367,14 @@ function openSettings(){
 }
 
 function copyOrderSQL(){
-  const sql=`-- 제품 분류 컬럼 추가
+  const sql=`-- 제품 분류 컬럼
 ALTER TABLE products ADD COLUMN IF NOT EXISTS classification TEXT DEFAULT '';
+-- 납품서 신규 컬럼
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS order_type TEXT DEFAULT 'sale';
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS location_id UUID;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS location_name TEXT DEFAULT '';
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS discount_type TEXT DEFAULT 'amount';
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS discount_value DECIMAL(10,2) DEFAULT 0;
 -- 창고 테이블
 CREATE TABLE IF NOT EXISTS warehouses (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, name TEXT NOT NULL, is_default BOOLEAN DEFAULT false, notes TEXT DEFAULT '', is_active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now());
 CREATE TABLE IF NOT EXISTS warehouse_stocks (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, product_id UUID REFERENCES products(id) ON DELETE CASCADE, warehouse_id UUID REFERENCES warehouses(id) ON DELETE CASCADE, quantity INTEGER DEFAULT 0, updated_at TIMESTAMPTZ DEFAULT now(), UNIQUE(product_id, warehouse_id));
