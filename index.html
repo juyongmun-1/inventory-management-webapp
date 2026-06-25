@@ -591,8 +591,9 @@ async function deleteSalesOrder(id){
 }
 
 /* ── 판매서 작성 폼 ── */
-function showSalesOrderForm(order){
-  S.pendingItems=order?S.salesOrderItems.filter(i=>i.order_id===order.id).map(i=>({...i})):[];
+function showSalesOrderForm(order,keepItems=false){
+  if(!keepItems)S.pendingItems=order?S.salesOrderItems.filter(i=>i.order_id===order.id).map(i=>({...i})):[];
+  S.soEditOrder=order??null;
   const isEdit=!!order;
   showModal(isEdit?'판매서 수정':'판매서 작성',`
     <div class="form-rows" style="margin-bottom:14px;">
@@ -640,34 +641,39 @@ function renderPendingItems(type){
 window.updatePendingItem=function(i,field,val,type){S.pendingItems[i][field]=val;renderPendingItems(type);};
 window.removePendingItem=function(i,type){S.pendingItems.splice(i,1);renderPendingItems(type);};
 
+function getItemProducts(type){
+  if(type==='sales')return S.products.filter(p=>p.classification==='완제품');
+  if(type==='purchase')return S.products.filter(p=>p.classification!=='완제품');
+  return S.products;
+}
+function itemRow(p,type){
+  const t=getTotalStock(p);
+  return`<div class="sitem" onclick="addPendingItem('${p.id}','${type}')"><div><div class="sitem-name">${p.name}</div><div class="sitem-sub">${p.code}${p.classification?` · ${p.classification}`:''} · 재고 ${t}개 · ₩${Number(p.unit_price||0).toLocaleString()}</div></div><span class="badge badge-primary">${t}</span></div>`;
+}
 function openAddItemModal(type){
-  const saved=document.getElementById('modal-body').innerHTML;
-  // show product picker then return
-  showModal('제품 선택',`
+  const pool=getItemProducts(type);
+  const label=type==='sales'?'완제품':'원재료/반제품 등';
+  const empty=pool.length===0?`<div style="color:var(--muted);padding:20px;text-align:center;font-size:13px;">분류가 '${label}'인 제품이 없습니다.<br>제품 관리에서 분류를 설정하세요.</div>`:'';
+  showModal(`제품 선택 (${label})`,`
     <div class="search-box" style="margin-bottom:10px;"><input type="search" class="search-input" id="item-search" placeholder="제품 검색..." oninput="filterItemList(this.value,'${type}')"></div>
-    <div id="item-list">${S.products.map(p=>`<div class="sitem" onclick="addPendingItem('${p.id}','${type}')"><div><div class="sitem-name">${p.name}</div><div class="sitem-sub">${p.code} · 재고 ${getTotalStock(p)}개 · ₩${Number(p.unit_price||0).toLocaleString()}</div></div><span class="badge badge-primary">${getTotalStock(p)}</span></div>`).join('')}</div>
-  `);
+    <div id="item-list">${empty||pool.map(p=>itemRow(p,type)).join('')}</div>
+  `,[{label:'닫기',cls:'btn-secondary',fn:`if(S.soEditOrder!==undefined&&'${type}'==='sales')showSalesOrderForm(S.soEditOrder,true);else showPurchaseOrderForm(S.poEditOrder,true)`}]);
 }
 
 window.filterItemList=function(q,type){
   const el=document.getElementById('item-list');if(!el)return;
-  const f=S.products.filter(p=>!q||p.name.toLowerCase().includes(q.toLowerCase())||p.code.toLowerCase().includes(q.toLowerCase()));
-  el.innerHTML=f.map(p=>`<div class="sitem" onclick="addPendingItem('${p.id}','${type}')"><div><div class="sitem-name">${p.name}</div><div class="sitem-sub">${p.code} · 재고 ${getTotalStock(p)}개</div></div><span class="badge badge-primary">${getTotalStock(p)}</span></div>`).join('');
+  const pool=getItemProducts(type);
+  const f=pool.filter(p=>!q||p.name.toLowerCase().includes(q.toLowerCase())||p.code.toLowerCase().includes(q.toLowerCase()));
+  el.innerHTML=f.length===0?`<div style="color:var(--muted);padding:20px;text-align:center;font-size:13px;">검색 결과 없음</div>`:f.map(p=>itemRow(p,type)).join('');
 };
 
 window.addPendingItem=function(productId,type){
   const p=S.products.find(x=>x.id===productId);if(!p)return;
   const exists=S.pendingItems.find(i=>i.product_id===productId);
-  if(exists){exists.quantity++;closeModal();if(type==='sales')showSalesOrderForm._reopen&&showSalesOrderForm._reopen();return;}
-  S.pendingItems.push({product_id:p.id,product_name:p.name,product_code:p.code,quantity:1,unit_price:p.unit_price||0});
-  closeModal();
-  // reopen order form - rerender items
-  setTimeout(()=>{
-    const wrap=document.getElementById('so-items-wrap')||document.getElementById('po-items-wrap');
-    if(wrap)renderPendingItems(type);
-    else if(type==='sales')showSalesOrderForm(null);
-    else showPurchaseOrderForm(null);
-  },50);
+  if(exists){exists.quantity++;}
+  else{S.pendingItems.push({product_id:p.id,product_name:p.name,product_code:p.code,quantity:1,unit_price:p.unit_price||0});}
+  if(type==='sales')showSalesOrderForm(S.soEditOrder,true);
+  else showPurchaseOrderForm(S.poEditOrder,true);
 };
 
 async function submitSalesOrder(id,status){
@@ -756,8 +762,9 @@ async function deletePurchaseOrder(id){
   toast('삭제되었습니다','s');
 }
 
-function showPurchaseOrderForm(order){
-  S.pendingItems=order?S.purchaseOrderItems.filter(i=>i.order_id===order.id).map(i=>({...i})):[];
+function showPurchaseOrderForm(order,keepItems=false){
+  if(!keepItems)S.pendingItems=order?S.purchaseOrderItems.filter(i=>i.order_id===order.id).map(i=>({...i})):[];
+  S.poEditOrder=order??null;
   const isEdit=!!order;
   showModal(isEdit?'발주서 수정':'발주서 작성',`
     <div class="form-rows" style="margin-bottom:14px;">
