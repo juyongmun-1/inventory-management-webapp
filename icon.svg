@@ -1,40 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" fill="white" rx="112"/>
-  <!-- Logo centered in 512x512, logo area ~460x154 starting at x=26, y=179 -->
-  <g fill="black" transform="translate(26,179)">
-
-    <!-- Shape 1: n/arch -->
-    <path d="
-      M 0,154
-      V 66
-      Q 0,0 70,0
-      Q 140,0 140,66
-      V 154
-      H 111
-      V 72
-      Q 111,29 70,29
-      Q 29,29 29,72
-      V 154
-      Z
-    "/>
-
-    <!-- Shape 2: two vertical bars (ll) -->
-    <rect x="165" y="0" width="29" height="154"/>
-    <rect x="207" y="0" width="29" height="154"/>
-
-    <!-- Shape 3: circle ring with vertical cuts -->
-    <!-- Outer filled circle -->
-    <circle cx="371" cy="77" r="89"/>
-    <!-- Inner hole -->
-    <circle cx="371" cy="77" r="43" fill="white"/>
-    <!-- Top cut (white slot) -->
-    <rect x="358" y="-12" width="26" height="42" fill="white"/>
-    <!-- Bottom cut (white slot) -->
-    <rect x="358" y="124" width="26" height="42" fill="white"/>
-    <!-- Top inner bar (black, narrower than cut) -->
-    <rect x="363" y="-12" width="16" height="42"/>
-    <!-- Bottom inner bar -->
-    <rect x="363" y="124" width="16" height="42"/>
-
+  <!-- plup 로고 (원본 viewBox 0 0 595.28 241.22 를 512x512 중앙 배치) -->
+  <g transform="translate(26, 156) scale(0.772)">
+    <path fill="#231815" d="M72.81,205.35H31.8v-113.85s9.19-61.87,61.87-61.87,65.05,44.9,65.05,65.05v110.66s-39.78,5.3-39.78-39.78v-71.95s-2.3-22.8-22.8-22.8-22.72,22.72-22.72,22.72l-.62,111.81Z"/>
+    <path fill="#231815" d="M228.38,32.81h-40.31v172.73s40.4.71,40.4-40.4-.1-132.33-.1-132.33Z"/>
+    <rect fill="#231815" x="285.65" y="32.81" width="41.01" height="172.73"/>
+    <path fill="#231815" d="M458.9,26.98v44.02s-42.43,8.66-42.43,48.88,42.43,50.12,42.43,50.12v43.13s-86.98-10.96-86.98-91.75,78.49-95.46,86.98-94.4Z"/>
+    <path fill="#231815" d="M476.5,214.25v-44.02s42.43-8.66,42.43-48.88-42.43-50.12-42.43-50.12V28.1s86.98,10.96,86.98,91.75-78.49,95.46-86.98,94.4Z"/>
   </g>
 </svg>
