@@ -434,7 +434,9 @@ async function recordTx(data){
   // warehouse stock before
   const wid=data.warehouse_id;
   const ws=wid?getWS(p.id,wid):null;
-  const ws0=ws?ws.quantity:0;
+  // 창고별 기록이 없는 제품은 current_stock을 폴백으로 사용
+  const hasWsEntries=S.warehouseStocks.some(s=>s.product_id===p.id);
+  const ws0=ws?ws.quantity:(!hasWsEntries?p.current_stock:0);
 
   // for move type
   if(data.type==='move'){
@@ -566,6 +568,7 @@ function showSalesOrderDetail(id){
     </div>
     <div class="row-list" style="margin:0 0 14px;">
       ${o.order_type==='consignment'?`<div class="row-item"><span class="row-label">위탁처</span><span class="row-value set">${o.location_name||'-'}</span></div>`:`${o.customer?`<div class="row-item"><span class="row-label">고객</span><span class="row-value set">${o.customer}</span></div>`:''}`}
+      ${o.warehouse_name?`<div class="row-item"><span class="row-label">출고 창고</span><span class="row-value set">🏭 ${o.warehouse_name}</span></div>`:''}
       <div class="row-item"><span class="row-label">판매일</span><span class="row-value set">${fmtDate(o.sale_date||o.created_at)}</span></div>
       ${o.ship_date?`<div class="row-item"><span class="row-label">출고 예정일</span><span class="row-value set">${fmtDate(o.ship_date)}</span></div>`:''}
       ${o.notes?`<div class="row-item"><span class="row-label">메모</span><span class="row-value set">${o.notes}</span></div>`:''}
