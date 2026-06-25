@@ -33,7 +33,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .setup-logo h1{font-size:22px;font-weight:800;margin-top:10px;color:var(--primary);}
 .setup-logo p{color:var(--muted);font-size:13px;margin-top:4px;}
 /* App shell */
-.app{display:none;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;}
+.app{position:fixed;inset:0;display:none;flex-direction:column;}
 .app.on{display:flex;}
 /* Header */
 .hdr{background:#fff;padding:14px 16px 14px;padding-top:calc(env(safe-area-inset-top,0px) + 12px);border-bottom:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
@@ -135,9 +135,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .btn-row .btn{margin:0;}
 /* Search */
 .search-wrap{padding:12px 16px;}
-.search-input{width:100%;padding:11px 14px 11px 38px;background:#fff;border:1.5px solid var(--border2);border-radius:12px;font-size:15px;position:relative;}
+.search-input{width:100%;padding:11px 14px 11px 36px;background:#fff;border:1.5px solid var(--border2);border-radius:12px;font-size:15px;}
 .search-box{position:relative;}
-.search-box::before{content:'🔍';position:absolute;left:28px;top:50%;transform:translateY(-50%);font-size:14px;z-index:1;pointer-events:none;}
+.search-box::before{content:'🔍';position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;z-index:1;pointer-events:none;}
 /* Filter chips */
 .chips{display:flex;gap:6px;padding:0 16px 12px;overflow-x:auto;}
 .chips::-webkit-scrollbar{display:none;}
@@ -260,9 +260,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
   <div class="content" id="content"></div>
   <div class="bnav">
-    <button class="bnav-item active" id="nav-dash" onclick="go('dash')"><span class="bnav-icon">🏠</span><span class="bnav-label">홈</span></button>
     <button class="bnav-item" id="nav-products" onclick="go('products')"><span class="bnav-icon">📦</span><span class="bnav-label">제품</span></button>
     <button class="bnav-item" id="nav-sales" onclick="go('sales')"><span class="bnav-icon">🧾</span><span class="bnav-label">납품서</span></button>
+    <button class="bnav-item active" id="nav-dash" onclick="go('dash')"><span class="bnav-icon">🏠</span><span class="bnav-label">홈</span></button>
     <button class="bnav-item" id="nav-consign" onclick="go('consign')"><span class="bnav-icon">🚚</span><span class="bnav-label">위탁처</span></button>
     <button class="bnav-item" id="nav-more" onclick="go('more')"><span class="bnav-icon">⋯</span><span class="bnav-label">더보기</span></button>
   </div>
@@ -290,7 +290,7 @@ const S={
   salesOrders:[],salesOrderItems:[],purchaseOrders:[],purchaseOrderItems:[],
   warehouses:[],warehouseStocks:[],
   cfg:null,sb:null,
-  pSearch:'',pFilter:'all',
+  pSearch:'',pFilter:'all',pSort:'name',
   pFilters:{stock:null,type:null,classification:null,category:null,location:null},
   txType:'in',txProduct:null,txLocation:null,txWarehouse:null,txToWarehouse:null,
   histFilter:'all',histLocFilter:'all',
@@ -308,6 +308,45 @@ function saveTypeLabels(l){localStorage.setItem('inv_type_labels',JSON.stringify
 function getTypeLabel(t){return getTypeLabels()[t]||t;}
 
 /* ── 회사 정보 ── */
+/* ── 공지사항 ── */
+function getNotices(){const s=localStorage.getItem('inv_notices');return s?JSON.parse(s):[];}
+function saveNotices(n){localStorage.setItem('inv_notices',JSON.stringify(n));}
+function renderNotices(){
+  const list=getNotices();
+  document.getElementById('content').innerHTML=list.length===0
+    ?`<div class="empty"><div class="icon">📢</div><p>공지사항이 없습니다<br>+ 버튼으로 추가하세요</p></div>`
+    :`<div style="height:12px;"></div><div class="row-list">${list.map(n=>`<div class="row-item" style="flex-direction:column;align-items:flex-start;gap:4px;" onclick="showNoticeDetail('${n.id}')"><div style="font-weight:600;">${n.title}</div><div style="font-size:12px;color:var(--muted);">${n.date||''}</div></div>`).join('')}</div>`;
+}
+function showNoticeDetail(id){
+  const n=getNotices().find(x=>x.id===id);if(!n)return;
+  showModal(n.title,`<div style="font-size:14px;line-height:1.8;color:var(--text);white-space:pre-wrap;">${n.content}</div><div style="font-size:12px;color:var(--muted);margin-top:12px;">${n.date||''}</div>`,[
+    {label:'수정',cls:'btn-outline',fn:`closeModal();showNoticeForm('${id}')`},
+    {label:'삭제',cls:'btn-danger',fn:`deleteNotice('${id}')`}
+  ]);
+}
+function showNoticeForm(id){
+  const n=id?getNotices().find(x=>x.id===id):null;
+  showModal(n?'공지 수정':'공지 작성',`
+    <div class="fg"><label>제목 *</label><input id="nf-title" value="${n?.title||''}" placeholder="공지 제목"></div>
+    <div class="fg"><label>날짜</label><input id="nf-date" type="date" value="${n?.date||new Date().toISOString().substring(0,10)}"></div>
+    <div class="fg" style="margin-bottom:0;"><label>내용</label><textarea id="nf-content" rows="6" style="width:100%;padding:10px;border:1.5px solid var(--border2);border-radius:10px;font-size:14px;resize:none;">${n?.content||''}</textarea></div>
+  `,[{label:'취소',cls:'btn-secondary',fn:'closeModal()'},{label:n?'저장':'추가',cls:'btn-primary',fn:`submitNoticeForm('${id||''}')`}]);
+}
+window.submitNoticeForm=function(id){
+  const title=document.getElementById('nf-title')?.value.trim();if(!title){toast('제목을 입력하세요','e');return;}
+  const content=document.getElementById('nf-content')?.value.trim()||'';
+  const date=document.getElementById('nf-date')?.value||'';
+  const obj={id:id||String(Date.now()),title,content,date};
+  const list=getNotices();
+  if(id){const i=list.findIndex(x=>x.id===id);if(i>=0)list[i]=obj;else list.unshift(obj);}
+  else{list.unshift(obj);}
+  saveNotices(list);closeModal();renderNotices();toast(id?'수정됨':'공지 추가됨','s');
+};
+window.deleteNotice=function(id){
+  if(!confirm('삭제하시겠습니까?'))return;
+  saveNotices(getNotices().filter(x=>x.id!==id));closeModal();renderNotices();toast('삭제됨','s');
+};
+
 function getCompanyInfo(){const s=localStorage.getItem('inv_company');return s?JSON.parse(s):{bizNo:'',name:'',addr:'',industry:'',manager:'',email:'',bank:''};}
 function saveCompanyInfo(c){localStorage.setItem('inv_company',JSON.stringify(c));}
 
@@ -606,11 +645,12 @@ function go(tab){
     case 'customers':renderCustomers();break;
     case 'suppliers':renderSuppliers();break;
     case 'vat':renderVat();break;
+    case 'notices':renderNotices();break;
   }
 }
 
 function setHdr(tab){
-  const titles={dash:'홈',products:'제품 관리',sales:'납품서',purchase:'발주서',more:'더보기',inout:'입출고',consign:'위탁처',history:'거래 이력',warehouses:'창고 관리',analytics:'매출 현황',customers:'고객 관리',suppliers:'공급처 관리',vat:'부가세 계산기'};
+  const titles={dash:'홈',products:'제품 관리',sales:'납품서',purchase:'발주서',more:'더보기',inout:'입출고',consign:'위탁처',history:'거래 이력',warehouses:'창고 관리',analytics:'매출 현황',customers:'고객 관리',suppliers:'공급처 관리',vat:'부가세 계산기',notices:'공지사항'};
   document.getElementById('hdr-title').textContent=titles[tab]||'';
   const L=document.getElementById('hdr-left');
   const R=document.getElementById('hdr-right');
@@ -623,6 +663,7 @@ function setHdr(tab){
   else if(tab==='warehouses')R.innerHTML='<button class="icon-btn primary" onclick="showWarehouseForm(null)">+</button>';
   else if(tab==='customers')R.innerHTML='<button class="icon-btn primary" onclick="showCustomerForm(\'\')">+</button>';
   else if(tab==='suppliers')R.innerHTML='<button class="icon-btn primary" onclick="showSupplierForm(\'\')">+</button>';
+  else if(tab==='notices')R.innerHTML='<button class="icon-btn primary" onclick="showNoticeForm(\'\')">+</button>';
   else R.innerHTML='';
 }
 
@@ -720,6 +761,7 @@ function renderDash(){
         </div>
       </div>
     </div>
+    ${(()=>{const ns=getNotices();const n=ns[0];return n?`<div onclick="go('notices')" style="display:flex;align-items:center;gap:10px;background:#FEF3C7;border-left:4px solid #F59E0B;padding:12px 16px;cursor:pointer;"><span style="font-size:18px;">📢</span><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:700;color:#92400E;">${n.title}</div><div style="font-size:11px;color:#B45309;margin-top:1px;">${n.date||''}</div></div><span style="color:#B45309;font-size:16px;">›</span></div>`:''})()}
     ${lowStock.length>0?`<div class="section-title">⚠️ 재고 부족</div><div class="row-list">${lowStock.slice(0,3).map(p=>`<div class="row-item" onclick="go('products');showProductDetail('${p.id}')"><span class="row-label">${p.name}</span><span class="row-value">${getTotalStock(p)}개 <span class="badge badge-danger">부족</span></span></div>`).join('')}</div>`:''}
     <div class="section-title">📋 최근 납품서</div>
     <div class="row-list">
@@ -1191,10 +1233,9 @@ function renderProducts(){
   document.getElementById('content').innerHTML=`
     <div style="background:#fff;position:sticky;top:0;z-index:10;border-bottom:1px solid var(--border2);">
       <div style="display:flex;align-items:center;gap:8px;padding:10px 16px 8px;">
-        <div class="search-box" style="flex:1;margin:0;"><input type="search" class="search-input" placeholder="제품명 또는 코드 검색..." value="${S.pSearch}" oninput="S.pSearch=this.value;renderProducts()"></div>
-        <button onclick="showProductFilter()" style="position:relative;padding:8px 12px;border:1.5px solid ${activeCount>0?'var(--primary)':'var(--border2)'};border-radius:20px;background:${activeCount>0?'var(--primary-l)':'#fff'};color:${activeCount>0?'var(--primary)':'var(--text)'};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">
-          ⚙️ 필터${activeCount>0?` <span style="background:var(--primary);color:#fff;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-left:2px;">${activeCount}</span>`:''}
-        </button>
+        <div class="search-box" style="flex:1;margin:0;"><input type="search" id="prod-search" class="search-input" placeholder="제품명 또는 코드 검색..." value="${S.pSearch}" oninput="onProdSearch(this.value)"></div>
+        <button onclick="showProductFilter()" style="position:relative;padding:8px 10px;border:1.5px solid ${activeCount>0?'var(--primary)':'var(--border2)'};border-radius:20px;background:${activeCount>0?'var(--primary-l)':'#fff'};color:${activeCount>0?'var(--primary)':'var(--text)'};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">⚙️${activeCount>0?` <span style="background:var(--primary);color:#fff;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;">${activeCount}</span>`:''}</button>
+        <button onclick="showProductSort()" style="padding:8px 10px;border:1.5px solid var(--border2);border-radius:20px;background:#fff;color:var(--text);font-size:13px;cursor:pointer;white-space:nowrap;">↕️</button>
       </div>
       ${activeTags.length>0?`<div class="chips" style="padding:0 16px 8px;gap:6px;">${activeTags.map(([l,k])=>`<div class="chip active" style="display:flex;align-items:center;gap:4px;">${l}<span onclick="togglePF('${k}',null)" style="font-size:14px;line-height:1;opacity:.7;cursor:pointer;">×</span></div>`).join('')}<button onclick="resetPF()" style="border:none;background:none;color:var(--muted);font-size:12px;cursor:pointer;padding:2px 4px;">전체 초기화</button></div>`:''}
     </div>
@@ -1219,7 +1260,7 @@ window.showProductFilter=function(){
 };
 
 function filteredProducts(){
-  const f=S.pFilters;let arr=S.products;
+  const f=S.pFilters||{};let arr=[...S.products];
   if(S.pSearch){const q=S.pSearch.toLowerCase();arr=arr.filter(p=>p.name.toLowerCase().includes(q)||p.code.toLowerCase().includes(q));}
   if(f.stock==='low')arr=arr.filter(p=>getTotalStock(p)<=p.min_stock&&p.min_stock>0);
   if(f.type)arr=arr.filter(p=>f.type==='own'?p.type!=='oem':p.type==='oem');
@@ -1227,18 +1268,36 @@ function filteredProducts(){
   if(f.category)arr=arr.filter(p=>p.category===f.category);
   if(f.location==='has')arr=arr.filter(p=>S.cstocks.some(s=>s.product_id===p.id&&s.quantity>0));
   if(f.locName)arr=arr.filter(p=>{const loc=S.locations.find(l=>l.name===f.locName);return loc&&S.cstocks.some(s=>s.product_id===p.id&&s.location_id===loc.id&&s.quantity>0);});
+  const sort=S.pSort||'name';
+  if(sort==='name')arr.sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+  else if(sort==='name_desc')arr.sort((a,b)=>b.name.localeCompare(a.name,'ko'));
+  else if(sort==='sku')arr.sort((a,b)=>(a.code||'').localeCompare(b.code||''));
+  else if(sort==='sku_desc')arr.sort((a,b)=>(b.code||'').localeCompare(a.code||''));
+  else if(sort==='stock')arr.sort((a,b)=>getTotalStock(b)-getTotalStock(a));
+  else if(sort==='stock_asc')arr.sort((a,b)=>getTotalStock(a)-getTotalStock(b));
+  else if(sort==='created')arr.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
   return arr;
 }
 function togglePF(key,val){
   if(!S.pFilters)S.pFilters={stock:null,type:null,classification:null,category:null,location:null,locName:null};
   S.pFilters[key]=S.pFilters[key]===val?null:val;
-  // 위탁처 선택 시 위탁여부 필터 해제, 그 반대도
   if(key==='locName'&&S.pFilters.locName)S.pFilters.location=null;
   if(key==='location'&&S.pFilters.location)S.pFilters.locName=null;
   renderProducts();
 }
 function resetPF(){S.pFilters={stock:null,type:null,classification:null,category:null,location:null,locName:null};S.pSearch='';renderProducts();}
 function setPF(f){S.pFilter=f;renderProducts();}
+window.onProdSearch=function(val){
+  S.pSearch=val;
+  const ss=document.getElementById('prod-search')?.selectionStart||val.length;
+  renderProducts();
+  const el=document.getElementById('prod-search');
+  if(el){el.focus();try{el.setSelectionRange(ss,ss);}catch(e){}}
+};
+window.showProductSort=function(){
+  const sorts=[['name','제품명 가→나'],['name_desc','제품명 나→가'],['sku','SKU A→Z'],['sku_desc','SKU Z→A'],['stock','재고 많은순'],['stock_asc','재고 적은순'],['created','최근 추가순']];
+  showModal('정렬',`<div class="row-list">${sorts.map(([v,l])=>`<div class="row-item" onclick="S.pSort='${v}';closeModal();renderProducts()"><span class="row-label">${l}</span>${S.pSort===v?'<span style="color:var(--primary);font-weight:700;">✓</span>':''}</div>`).join('')}</div>`);
+};
 
 function showProductDetail(id){
   const p=S.products.find(x=>x.id===id);if(!p)return;
@@ -1735,6 +1794,10 @@ function renderHistory(){
 function renderMore(){
   document.getElementById('content').innerHTML=`
     <div style="padding:16px 0;">
+      <div class="section-title">공지</div>
+      <div class="row-list">
+        <div class="row-item" onclick="go('notices')"><span class="row-label">📢 공지사항 관리</span><span class="row-arrow">›</span></div>
+      </div>
       <div class="section-title">통계 및 분석</div>
       <div class="row-list">
         <div class="row-item" onclick="go('analytics')"><span class="row-label">📊 매출 현황</span><span class="row-arrow">›</span></div>
