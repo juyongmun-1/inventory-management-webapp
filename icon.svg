@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="white" rx="112"/>
+  <!-- Logo centered in 512x512, logo area ~460x154 starting at x=26, y=179 -->
+  <g fill="black" transform="translate(26,179)">
+
+    <!-- Shape 1: n/arch -->
+    <path d="
+      M 0,154
+      V 66
+      Q 0,0 70,0
+      Q 140,0 140,66
+      V 154
+      H 111
+      V 72
+      Q 111,29 70,29
+      Q 29,29 29,72
+      V 154
+      Z
+    "/>
+
+    <!-- Shape 2: two vertical bars (ll) -->
+    <rect x="165" y="0" width="29" height="154"/>
+    <rect x="207" y="0" width="29" height="154"/>
+
+    <!-- Shape 3: circle ring with vertical cuts -->
+    <!-- Outer filled circle -->
+    <circle cx="371" cy="77" r="89"/>
+    <!-- Inner hole -->
+    <circle cx="371" cy="77" r="43" fill="white"/>
+    <!-- Top cut (white slot) -->
+    <rect x="358" y="-12" width="26" height="42" fill="white"/>
+    <!-- Bottom cut (white slot) -->
+    <rect x="358" y="124" width="26" height="42" fill="white"/>
+    <!-- Top inner bar (black, narrower than cut) -->
+    <rect x="363" y="-12" width="16" height="42"/>
+    <!-- Bottom inner bar -->
+    <rect x="363" y="124" width="16" height="42"/>
+
+  </g>
+</svg>
