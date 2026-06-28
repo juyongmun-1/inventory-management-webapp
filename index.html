@@ -673,15 +673,19 @@ window.showAddRecipeItem=function(productId){
 };
 
 /* 원가 자동 동기화 (cost_mode=auto인 제품) */
-async function autoSyncCost(productId){
+async function autoSyncCost(productId,showMsg=false){
   const p=S.products.find(x=>x.id===productId);
-  if(!p||p.cost_mode!=='auto'||!p.weight_g)return;
+  if(!p){if(showMsg)toast('제품을 찾을 수 없습니다','e');return;}
+  if(p.cost_mode!=='auto'){if(showMsg)toast('원가 입력 방식이 "레시피 자동계산"이 아닙니다','w');return;}
+  if(!p.weight_g){if(showMsg)toast('제품 무게(g)를 먼저 입력하세요','w');return;}
+  const rc=calcRecipeCost(productId);
+  if(!rc){if(showMsg)toast('레시피 항목이 없습니다. 레시피·원가계산에서 원재료를 추가하세요','w');return;}
   const uc=unitCostFromRecipe(productId,p);
-  if(!uc)return;
+  if(!uc){if(showMsg)toast('원가 계산 결과가 0입니다. 원재료 단가를 확인하세요','w');return;}
   const cost=Math.round(uc);
-  if(p.cost_price===cost)return;
   await S.sb.from('products').update({cost_price:cost,updated_at:new Date().toISOString()}).eq('id',productId);
   p.cost_price=cost;
+  if(showMsg)toast(`원가 ₩${cost.toLocaleString()} 자동 적용됨 ✓`,'s');
 }
 
 window.submitRecipeItem=async function(productId){
@@ -1995,7 +1999,7 @@ async function submitProduct(id){
     S.pendingImageFile=null;await loadProducts();
     // cost_mode=auto이면 레시피에서 즉시 원가 재계산
     const savedId=id||(S.products.find(p=>p.code===prod.code&&p.name===prod.name)?.id);
-    if(prod.cost_mode==='auto'&&savedId)await autoSyncCost(savedId);
+    if(prod.cost_mode==='auto'&&savedId)await autoSyncCost(savedId,true);
     closeModal();renderProducts();toast(id?'수정됨':'추가됨','s');
   }catch(e){toast('오류: '+e.message,'e');}
 }
