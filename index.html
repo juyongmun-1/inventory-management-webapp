@@ -25,7 +25,8 @@
   --text:#111827;--muted:#9CA3AF;--border:#F3F4F6;--border2:#E5E7EB;
   --nav-h:60px;
 }
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+html{height:100%;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);height:100%;overflow:hidden;overscroll-behavior:none;}
 /* Setup */
 .setup{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,var(--primary),var(--primary-d));z-index:500;}
 .setup-card{background:#fff;border-radius:20px;padding:36px 24px;width:100%;max-width:400px;}
@@ -33,21 +34,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .setup-logo .icon{font-size:52px;}
 .setup-logo h1{font-size:22px;font-weight:800;margin-top:10px;color:var(--primary);}
 .setup-logo p{color:var(--muted);font-size:13px;margin-top:4px;}
-/* App shell */
-.app{position:fixed;inset:0;display:none;flex-direction:column;}
+/* App shell — 실제 보이는 높이에 맞춘 flex 컬럼 (헤더/콘텐츠/하단바) */
+.app{display:none;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;}
 .app.on{display:flex;}
-/* Header */
-.hdr{background:#fff;padding:14px 16px 14px;padding-top:calc(env(safe-area-inset-top,0px) + 12px);border-bottom:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+/* Header — 일반 flex 항목 (고정 높이) */
+.hdr{flex:0 0 auto;background:#fff;padding:14px 16px 14px;padding-top:calc(env(safe-area-inset-top,0px) + 12px);border-bottom:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between;z-index:100;}
 .hdr-center{position:absolute;left:50%;transform:translateX(-50%);text-align:center;}
 .hdr-title{font-size:17px;font-weight:700;}
 .hdr-left,.hdr-right{display:flex;align-items:center;gap:6px;min-width:60px;height:36px;}
 .hdr-right{justify-content:flex-end;}
 .icon-btn{width:36px;height:36px;border:none;background:transparent;border-radius:9px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;color:var(--text);}
 .icon-btn.primary{background:var(--primary);color:#fff;border-radius:50%;}
-/* Content */
-.content{flex:1;overflow-y:auto;min-height:0;padding-bottom:calc(var(--nav-h)+env(safe-area-inset-bottom,0px)+24px);}
-/* Bottom nav */
-.bnav{position:fixed;bottom:0;left:0;right:0;height:calc(var(--nav-h) + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);background:#fff;border-top:1px solid var(--border2);display:flex;align-items:flex-start;padding-top:6px;z-index:100;}
+/* Content — 유일한 스크롤 영역 (flex가 남은 공간을 모두 차지) */
+.content{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:24px;}
+/* Bottom nav — 일반 flex 항목 (고정 높이, 더 이상 fixed 아님) */
+.bnav{flex:0 0 auto;height:calc(var(--nav-h) + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);background:#fff;border-top:1px solid var(--border2);display:flex;align-items:flex-start;padding-top:6px;z-index:100;}
 .bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--muted);border:none;background:none;}
 .bnav-item.active{color:var(--primary);}
 .bnav-icon{font-size:22px;line-height:1;}
@@ -233,9 +234,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 @media(min-width:500px){
   .sheet{max-width:500px;margin:0 auto;border-radius:20px;}
   .overlay{align-items:center;justify-content:center;}
-  .content,.bnav{max-width:640px;}
-  .content{margin:0 auto;}
-  .bnav{left:50%;transform:translateX(-50%);}
+  .app{max-width:640px;margin:0 auto;border-left:1px solid var(--border2);border-right:1px solid var(--border2);}
 }
 </style>
 </head>
