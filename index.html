@@ -12,6 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="재고관리">
 <meta name="theme-color" content="#ffffff">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -379,6 +380,72 @@ window.submitIngredientForm=async function(id){
     await loadIngredients();closeModal();renderIngredients();toast(id?'수정됨':'추가됨','s');
   }catch(e){toast('오류: '+e.message,'e');}
 };
+window.triggerIngExcel=function(){document.getElementById('ing-excel-input')?.click();};
+
+window.importIngredientExcel=function(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(e.target.result,{type:'binary'});
+      // 원재료 시트 우선, 없으면 첫 번째 시트
+      const sheetName=wb.SheetNames.find(n=>n.includes('원재료'))||wb.SheetNames[0];
+      const ws=wb.Sheets[sheetName];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      // 헤더 행 찾기 (분류, 품목 등 포함)
+      let headerRow=-1;
+      for(let i=0;i<Math.min(rows.length,10);i++){
+        const r=rows[i].map(c=>String(c||''));
+        if(r.some(c=>c.includes('품목')||c.includes('분류')||c.includes('단가'))){headerRow=i;break;}
+      }
+      if(headerRow<0){toast('헤더를 찾을 수 없습니다. 품목/분류/단가 컬럼이 필요합니다','e');return;}
+      const headers=rows[headerRow].map(c=>String(c||'').trim());
+      const colIdx={
+        category: headers.findIndex(h=>h.includes('분류')),
+        name: headers.findIndex(h=>h.includes('품목')||h.includes('이름')||h.includes('원재료')),
+        qty: headers.findIndex(h=>h.includes('용량')||h.includes('수량')),
+        unit: headers.findIndex(h=>h==='단위'||h==='g'||h==='ml'),
+        price: headers.findIndex(h=>h.includes('단가')&&!h.includes('/')),
+        notes: headers.findIndex(h=>h.includes('비고')||h.includes('노트')),
+      };
+      const preview=[];
+      for(let i=headerRow+1;i<rows.length;i++){
+        const row=rows[i];
+        if(!row||row.every(c=>c===null||c===''))continue;
+        const name=colIdx.name>=0?String(row[colIdx.name]||'').trim():'';
+        if(!name||name==='계'||name==='합계')continue;
+        preview.push({
+          category:colIdx.category>=0?String(row[colIdx.category]||'').trim():'원료',
+          name,
+          package_qty:colIdx.qty>=0?parseFloat(row[colIdx.qty])||null:null,
+          package_unit:colIdx.unit>=0?String(row[colIdx.unit]||'g').trim():'g',
+          package_price:colIdx.price>=0?parseFloat(row[colIdx.price])||0:0,
+          notes:colIdx.notes>=0?String(row[colIdx.notes]||'').trim():'',
+        });
+      }
+      if(!preview.length){toast('가져올 데이터가 없습니다','e');return;}
+      showModal(`엑셀 가져오기 미리보기 (${preview.length}건)`,`
+        <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">아래 항목을 원재료에 추가합니다. 기존 동일 이름 항목은 건너뜁니다.</div>
+        <div class="row-list" style="max-height:300px;overflow-y:auto;">${preview.map(p=>`<div class="row-item"><div><div style="font-weight:600;">${p.name}</div><div style="font-size:11px;color:var(--muted);">${p.category} · ${p.package_qty||'-'}${p.package_unit} · ₩${Number(p.package_price).toLocaleString()}</div></div></div>`).join('')}</div>
+      `,[{label:'취소',cls:'btn-secondary',fn:'closeModal()'},{label:'가져오기',cls:'btn-primary',fn:`confirmIngImport(${JSON.stringify(JSON.stringify(preview))})`}]);
+      input.value='';
+    }catch(err){toast('파일 파싱 오류: '+err.message,'e');}
+  };
+  reader.readAsBinaryString(file);
+};
+
+window.confirmIngImport=async function(jsonStr){
+  const preview=JSON.parse(jsonStr);
+  const existing=S.ingredients.map(i=>i.name.toLowerCase());
+  const toInsert=preview.filter(p=>!existing.includes(p.name.toLowerCase()));
+  if(!toInsert.length){toast('모두 이미 등록된 항목입니다','e');return;}
+  try{
+    const now=new Date().toISOString();
+    await S.sb.from('ingredients').insert(toInsert.map(p=>({...p,created_at:now,updated_at:now})));
+    await loadIngredients();closeModal();renderIngredients();toast(`${toInsert.length}개 가져왔습니다 (중복 ${preview.length-toInsert.length}개 건너뜀)`,'s');
+  }catch(e){toast('오류: '+e.message,'e');}
+};
+
 window.deleteIngredient=async function(id){
   if(!confirm('삭제하시겠습니까?\n레시피에서도 제거됩니다.'))return;
   await S.sb.from('recipe_items').delete().eq('ingredient_id',id);
@@ -479,6 +546,18 @@ window.showAddRecipeItem=function(productId){
   `,[{label:'취소',cls:'btn-secondary',fn:`showRecipeEditor('${productId}')`},{label:'추가',cls:'btn-primary',fn:`submitRecipeItem('${productId}')`}]);
 };
 
+/* 원가 자동 동기화 (cost_mode=auto인 제품) */
+async function autoSyncCost(productId){
+  const p=S.products.find(x=>x.id===productId);
+  if(!p||p.cost_mode!=='auto'||!p.weight_g)return;
+  const uc=unitCostFromRecipe(productId,p);
+  if(!uc)return;
+  const cost=Math.round(uc);
+  if(p.cost_price===cost)return;
+  await S.sb.from('products').update({cost_price:cost,updated_at:new Date().toISOString()}).eq('id',productId);
+  p.cost_price=cost;
+}
+
 window.submitRecipeItem=async function(productId){
   const ingId=document.getElementById('ri-ing')?.value;
   const amt=parseFloat(document.getElementById('ri-amt')?.value)||0;
@@ -492,13 +571,13 @@ window.submitRecipeItem=async function(productId){
       recipe=data;if(recipe)S.recipes.push(recipe);
     }
     await S.sb.from('recipe_items').insert({recipe_id:recipe.id,ingredient_id:ingId,ingredient_name:ing?.name||'',amount_g:amt,amount_unit:unit});
-    await loadRecipes();showRecipeEditor(productId);toast('추가됨','s');
+    await loadRecipes();await autoSyncCost(productId);showRecipeEditor(productId);toast('추가됨 · 원가 자동 업데이트','s');
   }catch(e){toast('오류: '+e.message,'e');}
 };
 
 window.deleteRecipeItem=async function(itemId,productId){
   await S.sb.from('recipe_items').delete().eq('id',itemId);
-  await loadRecipes();showRecipeEditor(productId);toast('삭제됨','s');
+  await loadRecipes();await autoSyncCost(productId);showRecipeEditor(productId);toast('삭제됨','s');
 };
 
 window.saveBatchWeight=async function(productId){
@@ -506,7 +585,7 @@ window.saveBatchWeight=async function(productId){
   const recipe=S.recipes.find(r=>r.product_id===productId);
   if(recipe){await S.sb.from('recipes').update({batch_weight_g:w,updated_at:new Date().toISOString()}).eq('id',recipe.id);}
   else{await S.sb.from('recipes').insert({product_id:productId,batch_weight_g:w,created_at:new Date().toISOString(),updated_at:new Date().toISOString()});}
-  await loadRecipes();showRecipeEditor(productId);toast('저장됨','s');
+  await loadRecipes();await autoSyncCost(productId);showRecipeEditor(productId);toast('저장됨','s');
 };
 
 window.applyRecipeCost=async function(productId){
@@ -514,7 +593,8 @@ window.applyRecipeCost=async function(productId){
   const uc=unitCostFromRecipe(productId,p);
   if(!uc){toast(p.weight_g?'레시피 원가 계산 불가':'제품 무게를 먼저 입력하세요','e');return;}
   await S.sb.from('products').update({cost_price:Math.round(uc),cost_mode:'auto',updated_at:new Date().toISOString()}).eq('id',productId);
-  await loadProducts();closeModal();toast(`원가 ₩${Math.round(uc)} 적용됨`,'s');
+  p.cost_price=Math.round(uc);p.cost_mode='auto';
+  showRecipeEditor(productId);toast(`원가 ₩${Math.round(uc)} 자동 적용됨 ✓`,'s');
 };
 
 /* ── 공지사항 ── */
@@ -880,7 +960,7 @@ function setHdr(tab){
   else if(tab==='customers')R.innerHTML='<button class="icon-btn primary" onclick="showCustomerForm(\'\')">+</button>';
   else if(tab==='suppliers')R.innerHTML='<button class="icon-btn primary" onclick="showSupplierForm(\'\')">+</button>';
   else if(tab==='notices')R.innerHTML='<button class="icon-btn primary" onclick="showNoticeForm(\'\')">+</button>';
-  else if(tab==='ingredients')R.innerHTML='<button class="icon-btn primary" onclick="showIngredientForm(null)">+</button>';
+  else if(tab==='ingredients')R.innerHTML='<button class="icon-btn" onclick="triggerIngExcel()" title="엑셀 가져오기" style="font-size:16px;">📥</button><button class="icon-btn primary" onclick="showIngredientForm(null)">+</button><input type="file" id="ing-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importIngredientExcel(this)">';
   else if(tab==='recipe')R.innerHTML='';
   else R.innerHTML='';
 }
