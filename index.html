@@ -1968,7 +1968,11 @@ async function submitProduct(id){
     const now=new Date().toISOString();
     if(id){const{id:_,created_at,...u}=prod;u.updated_at=now;const{error}=await S.sb.from('products').update(u).eq('id',id);if(error)throw error;}
     else{const{error}=await S.sb.from('products').insert({...prod,created_at:now,updated_at:now});if(error)throw error;}
-    S.pendingImageFile=null;await loadProducts();closeModal();renderProducts();toast(id?'수정됨':'추가됨','s');
+    S.pendingImageFile=null;await loadProducts();
+    // cost_mode=auto이면 레시피에서 즉시 원가 재계산
+    const savedId=id||(S.products.find(p=>p.code===prod.code&&p.name===prod.name)?.id);
+    if(prod.cost_mode==='auto'&&savedId)await autoSyncCost(savedId);
+    closeModal();renderProducts();toast(id?'수정됨':'추가됨','s');
   }catch(e){toast('오류: '+e.message,'e');}
 }
 async function confirmDeleteProduct(id){
