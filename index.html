@@ -314,8 +314,13 @@ function getTypeLabel(t){return getTypeLabels()[t]||t;}
 /* ── 원재료 관리 ── */
 function ingPricePerG(ing){
   if(!ing.package_qty||!ing.package_price)return 0;
-  const ppg=ing.package_price/ing.package_qty;
-  return ppg;
+  const ppu=ing.package_price/ing.package_qty; // 단위당 가격 (g 또는 ml)
+  if(ing.package_unit==='ml'&&ing.density&&ing.density>0){
+    // ml 단위: g당 가격 = ml당 가격 ÷ 밀도(g/ml)
+    // 예) ₩98/ml ÷ 0.8g/ml = ₩122.5/g
+    return ppu/ing.density;
+  }
+  return ppu; // g 단위: 그대로 g당 가격
 }
 function renderIngredients(){
   const cats=[...new Set(S.ingredients.map(i=>i.category).filter(Boolean))];
@@ -344,7 +349,7 @@ function showIngredientDetail(id){
       <div class="row-item"><span class="row-label">구매 단가</span><span class="row-value set">₩${Number(ing.package_price||0).toLocaleString()}</span></div>
       <div class="row-item"><span class="row-label">현재 재고</span><span class="row-value set" style="font-weight:700;color:${ing.current_stock>0?'var(--success)':'var(--danger)'};">${ing.current_stock||0} ${ing.package_unit||'개'}</span></div>
       <div class="row-item" style="background:var(--primary-l);"><span class="row-label" style="font-weight:700;">g당 단가</span><span class="row-value set" style="color:var(--primary);font-weight:700;">₩${ppg.toFixed(4)}/g</span></div>
-      ${ing.density?`<div class="row-item"><span class="row-label">밀도</span><span class="row-value set">${ing.density} g/ml → ₩${(ppg/ing.density).toFixed(4)}/ml</span></div>`:''}
+      ${ing.density&&ing.package_unit==='ml'?`<div class="row-item"><span class="row-label">단위 환산</span><span class="row-value set">₩${(ing.package_price/ing.package_qty).toFixed(2)}/ml × 밀도 ${ing.density} = ₩${ppg.toFixed(2)}/g</span></div>`:''}
       ${ing.notes?`<div class="row-item"><span class="row-label">비고</span><span class="row-value set">${ing.notes}</span></div>`:''}
     </div>
   `,[{label:'수정',cls:'btn-outline',fn:`closeModal();showIngredientForm(S.ingredients.find(x=>x.id==='${id}'))`},{label:'삭제',cls:'btn-danger',fn:`deleteIngredient('${id}')`}]);
