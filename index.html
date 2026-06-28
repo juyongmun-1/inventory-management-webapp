@@ -388,6 +388,18 @@ window.submitIngredientForm=async function(id){
     await loadIngredients();closeModal();renderIngredients();toast(id?'수정됨':'추가됨','s');
   }catch(e){toast('오류: '+e.message,'e');}
 };
+window.showIngAddMenu=function(){
+  showModal('원재료 추가',`
+    <div class="row-list">
+      <div class="row-item" onclick="closeModal();showIngredientForm(null)" style="cursor:pointer;">
+        <span class="row-label" style="font-size:15px;">✏️ 직접 입력</span><span class="row-arrow">›</span>
+      </div>
+      <div class="row-item" onclick="closeModal();triggerIngExcel()" style="cursor:pointer;">
+        <span class="row-label" style="font-size:15px;">📥 엑셀로 가져오기</span><span class="row-arrow">›</span>
+      </div>
+    </div>
+  `);
+};
 window.triggerIngExcel=function(){document.getElementById('ing-excel-input')?.click();};
 
 window.importIngredientExcel=function(input){
@@ -1067,8 +1079,8 @@ function setHdr(tab){
   L.innerHTML=isMain?'':'<button class="icon-btn" onclick="go(\'more\')">‹</button>';
   if(tab==='products'){
     const isIng=S.stockTab==='ingredients'||S.stockTab==='packaging';
-    R.innerHTML=(isIng?`<button class="icon-btn" onclick="triggerIngExcel()" title="엑셀 가져오기" style="font-size:17px;">📥</button><input type="file" id="ing-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importIngredientExcel(this)">`:'')
-      +`<button class="icon-btn primary" id="stock-add-btn" onclick="${isIng?'showIngredientForm(null)':'showProductForm(null)'}">+</button>`;
+    R.innerHTML=`<button class="icon-btn primary" id="stock-add-btn" onclick="${isIng?'showIngAddMenu()':'showProductForm(null)'}">+</button>`
+      +(isIng?`<input type="file" id="ing-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importIngredientExcel(this)">`:``);
   }else if(tab==='sales')R.innerHTML='<button class="icon-btn primary" onclick="showSalesOrderForm(null)">+</button>';
   else if(tab==='purchase')R.innerHTML='<button class="icon-btn primary" onclick="showPurchaseOrderForm(null)">+</button>';
   else if(tab==='consign')R.innerHTML='<button class="icon-btn primary" onclick="showLocationForm(null)">+</button>';
