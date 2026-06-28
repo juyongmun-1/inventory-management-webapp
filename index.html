@@ -1449,7 +1449,7 @@ function showProductForm(p){
         <button onclick="applyGeneratedCode()" style="padding:6px 12px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">적용 →</button>
       </div>
     </div>
-    <div class="fg"><label>제품 코드/SKU * <span style="font-size:11px;color:var(--muted);font-weight:400;">(생성기에서 적용하거나 직접 입력)</span></label><input id="pf-code" value="${p?.code||''}" placeholder="예: 1C-D001" style="font-family:monospace;font-weight:700;"></div>
+    <div class="fg"><label>제품 코드/SKU <span style="font-size:11px;color:var(--muted);font-weight:400;">(선택 · 생성기에서 적용하거나 직접 입력)</span></label><input id="pf-code" value="${p?.code||''}" placeholder="비워두면 자동 부여 안함" style="font-family:monospace;font-weight:700;"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div class="fg"><label>카테고리</label><select id="pf-cat">${catOpts}</select></div>
       <div class="fg"><label>분류</label><select id="pf-cls">${clsOpts}</select></div>
@@ -1494,7 +1494,8 @@ async function uploadProductImage(file,code){
 }
 async function submitProduct(id){
   const name=document.getElementById('pf-name').value.trim(),code=document.getElementById('pf-code').value.trim();
-  if(!name||!code){toast('제품명과 코드는 필수입니다','e');return;}
+  if(!name){toast('제품명은 필수입니다','e');return;}
+  if(code){const dup=S.products.find(p=>p.code===code&&p.id!==id);if(dup){toast(`이미 사용 중인 SKU입니다 (${dup.name})','e');return;}}
   const catVal=document.getElementById('pf-cat').value;
   const clsVal=document.getElementById('pf-cls').value;
   const prod={id:id||undefined,name,code,category:catVal,classification:clsVal,type:document.getElementById('pf-type').value,unit_price:parseFloat(document.getElementById('pf-up').value)||0,cost_price:parseFloat(document.getElementById('pf-cp').value)||0,current_stock:parseInt(document.getElementById('pf-stock').value)||0,min_stock:parseInt(document.getElementById('pf-min').value)||0};
