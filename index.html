@@ -1667,7 +1667,9 @@ function renderProducts(){
     ${tabs.map(([v,l])=>`<button onclick="setStockTab('${v}')" style="flex:1;padding:11px 4px;border:none;background:none;font-size:12px;font-weight:700;cursor:pointer;border-bottom:2px solid ${S.stockTab===v?'var(--primary)':'transparent'};color:${S.stockTab===v?'var(--primary)':'var(--muted)'};">${l}</button>`).join('')}
   </div>`;
   if(S.stockTab==='ingredients'||S.stockTab==='packaging'){
-    const btn=document.getElementById('stock-add-btn');if(btn)btn.onclick=()=>showIngredientForm(S.stockTab==='packaging'?{_cat:'포장재'}:null);
+    const btn=document.getElementById('stock-add-btn');if(btn)btn.onclick=()=>showIngAddMenu();
+    // 파일 input을 헤더에 없을 경우 동적 생성
+    if(!document.getElementById('ing-excel-input')){const fi=document.createElement('input');fi.type='file';fi.id='ing-excel-input';fi.accept='.xlsx,.xls,.csv';fi.style.display='none';fi.onchange=function(){importIngredientExcel(this);};document.body.appendChild(fi);}
     document.getElementById('content').innerHTML=segBar+renderIngredientTab(S.stockTab);
     return;
   }
