@@ -497,13 +497,16 @@ function unitCostFromRecipe(productId,p){
 }
 
 function renderRecipePage(){
-  const finished=S.products.filter(p=>p.classification==='완제품');
+  const prods=S.products; // 분류 제거로 모든 제품 표시
   document.getElementById('content').innerHTML=`
     <div style="padding:16px;">
-      <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">완제품을 선택하여 레시피를 설정하세요.</div>
-      ${finished.length===0?`<div class="empty"><div class="icon">📋</div><p>완제품 분류 제품이 없습니다<br>제품 추가 시 분류를 완제품으로 설정하세요</p></div>`:`<div class="row-list">${finished.map(p=>{
-        const rc=calcRecipeCost(p.id);
-        const uc=unitCostFromRecipe(p.id,p);
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <span style="font-size:13px;color:var(--muted);">제품을 선택하여 레시피를 설정하세요.</span>
+        <button onclick="triggerRecipeExcel()" style="padding:6px 12px;border:1.5px solid var(--border2);border-radius:20px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;">📥 레시피 가져오기</button>
+        <input type="file" id="recipe-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importRecipeExcel(this)">
+      </div>
+      ${prods.length===0?`<div class="empty"><div class="icon">📋</div><p>제품을 먼저 추가하세요</p></div>`:`<div class="row-list">${prods.map(p=>{
+        const rc=calcRecipeCost(p.id);const uc=unitCostFromRecipe(p.id,p);
         return`<div class="row-item" onclick="showRecipeEditor('${p.id}')">
           <div><div style="font-weight:700;">${p.name}</div>
           <div style="font-size:12px;color:var(--muted);">${p.weight_g?`${p.weight_g}${p.weight_unit||'g'} · `:'무게 미입력 · '}${rc?`배치원가 ₩${rc.batchCost.toFixed(0)}`:'레시피 없음'}</div></div>
@@ -511,6 +514,92 @@ function renderRecipePage(){
         </div>`;}).join('')}</div>`}
     </div>`;
 }
+window.triggerRecipeExcel=function(){document.getElementById('recipe-excel-input')?.click();};
+window.importRecipeExcel=function(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(e.target.result,{type:'binary'});
+      const sheetName=wb.SheetNames.find(n=>n.includes('용량')||n.includes('레시피'))||wb.SheetNames[0];
+      const ws=wb.Sheets[sheetName];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      if(rows.length<3){toast('레시피 데이터를 찾을 수 없습니다','e');return;}
+      // 제품명 행 찾기 (제품명이 여러 컬럼에 있는 행)
+      let prodRow=-1,ingStartRow=-1;
+      for(let i=0;i<Math.min(rows.length,6);i++){
+        const r=rows[i];const filled=r.filter(c=>c!=null&&String(c).trim()!=='').length;
+        if(filled>=3){prodRow=i;ingStartRow=i+1;break;}
+      }
+      if(prodRow<0){toast('제품명 행을 찾을 수 없습니다','e');return;}
+      // 제품 컬럼 (3번째 컬럼부터)
+      const prodCols=[];
+      const hdr=rows[prodRow];
+      for(let c=2;c<hdr.length;c++){if(hdr[c]!=null&&String(hdr[c]).trim())prodCols.push({col:c,name:String(hdr[c]).trim()});}
+      if(!prodCols.length){toast('제품 컬럼을 찾을 수 없습니다','e');return;}
+      // 원재료 행 파싱
+      const ingRows=[];
+      for(let r=ingStartRow;r<rows.length;r++){
+        const row=rows[r];
+        const ingName=row[1]||row[2];
+        if(!ingName||String(ingName).includes('계')||String(ingName).includes('합계'))continue;
+        const name=String(ingName).replace(/\(.*?\)/g,'').trim();
+        if(name)ingRows.push({row:r,name,rawName:String(ingName).trim()});
+      }
+      S._recipeImportData={prodCols,ingRows,rows,sheetName};
+      // 제품 선택 모달
+      showModal('레시피 가져오기 — 제품 선택',`
+        <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">가져올 제품을 선택하세요. (시트: ${sheetName})</div>
+        <div class="row-list">${prodCols.map(pc=>`<div class="row-item" onclick="previewRecipeImport(${pc.col},'${pc.name.replace(/'/g,'\\\'')}')" style="cursor:pointer;">
+          <span style="font-weight:700;">${pc.name}</span><span class="row-arrow">›</span>
+        </div>`).join('')}</div>
+      `);
+      input.value='';
+    }catch(err){toast('파일 오류: '+err.message,'e');}
+  };
+  reader.readAsBinaryString(file);
+};
+window.previewRecipeImport=function(col,excelProdName){
+  const d=S._recipeImportData;if(!d)return;
+  // 앱 제품과 매칭
+  const matchedProd=S.products.find(p=>p.name.includes(excelProdName)||excelProdName.includes(p.name));
+  const items=d.ingRows.map(ir=>{
+    const amt=d.rows[ir.row]?.[col];
+    const matchedIng=S.ingredients.find(i=>i.name.replace(/\(.*?\)/g,'').trim()===ir.name||ir.name.includes(i.name)||i.name.includes(ir.name));
+    return{...ir,amount:parseFloat(amt)||0,ingId:matchedIng?.id||null,ingName:matchedIng?.name||null};
+  }).filter(i=>i.amount>0);
+  showModal(`레시피 미리보기 — ${excelProdName}`,`
+    <div class="fg"><label>등록할 제품</label>
+      <select id="ri-prod-select" style="width:100%;padding:10px;border:1.5px solid var(--border2);border-radius:10px;font-size:14px;">
+        ${S.products.map(p=>`<option value="${p.id}" ${matchedProd?.id===p.id?'selected':''}>${p.name}</option>`).join('')}
+      </select>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">${items.length}개 항목 · 미매칭 원재료는 이름으로 저장됩니다</div>
+    <div class="row-list" style="max-height:280px;overflow-y:auto;">${items.map(it=>`<div class="row-item"><div><div style="font-weight:600;">${it.rawName}</div><div style="font-size:11px;color:${it.ingId?'var(--success)':'var(--danger)'};">${it.ingId?`✓ ${it.ingName}`:'⚠ 원재료 미매칭 (이름으로 저장)'}</div></div><span class="row-value set">${it.amount}g</span></div>`).join('')}</div>
+  `,[{label:'취소',cls:'btn-secondary',fn:'closeModal()'},{label:'가져오기',cls:'btn-primary',fn:`confirmRecipeImport(${col})`}]);
+};
+window.confirmRecipeImport=async function(col){
+  const d=S._recipeImportData;if(!d)return;
+  const productId=document.getElementById('ri-prod-select')?.value;
+  if(!productId){toast('제품을 선택하세요','e');return;}
+  const items=d.ingRows.map(ir=>{
+    const amt=parseFloat(d.rows[ir.row]?.[col])||0;
+    const matchedIng=S.ingredients.find(i=>i.name.replace(/\(.*?\)/g,'').trim()===ir.name||ir.name.includes(i.name)||i.name.includes(ir.name));
+    return{name:ir.rawName,amount:amt,ingId:matchedIng?.id||null};
+  }).filter(i=>i.amount>0);
+  try{
+    let recipe=S.recipes.find(r=>r.product_id===productId);
+    if(!recipe){
+      const{data}=await S.sb.from('recipes').insert({product_id:productId,batch_weight_g:1000,created_at:new Date().toISOString(),updated_at:new Date().toISOString()}).select().single();
+      recipe=data;if(recipe)S.recipes.push(recipe);
+    }else{
+      await S.sb.from('recipe_items').delete().eq('recipe_id',recipe.id);
+    }
+    await S.sb.from('recipe_items').insert(items.map(it=>({recipe_id:recipe.id,ingredient_id:it.ingId||null,ingredient_name:it.name,amount_g:it.amount,amount_unit:'g'})));
+    await loadRecipes();await autoSyncCost(productId);
+    closeModal();renderRecipePage();toast(`레시피 ${items.length}개 항목 가져왔습니다`,'s');
+  }catch(err){toast('오류: '+err.message,'e');}
+};
 
 function showRecipeEditor(productId){
   const p=S.products.find(x=>x.id===productId);if(!p)return;
@@ -971,7 +1060,12 @@ function setHdr(tab){
   const R=document.getElementById('hdr-right');
   const isMain=['dash','products','sales','consign','more'].includes(tab);
   L.innerHTML=isMain?'':'<button class="icon-btn" onclick="go(\'more\')">‹</button>';
-  if(tab==='products')R.innerHTML=`<button class="icon-btn primary" onclick="${S.stockTab==='ingredients'?'showIngredientForm(null)':'showProductForm(null)'}" id="stock-add-btn">+</button>`;
+  if(tab==='products'){
+    const isIng=S.stockTab==='ingredients'||S.stockTab==='packaging';
+    R.innerHTML=(isIng?`<button class="icon-btn" onclick="triggerIngExcel()" title="엑셀 가져오기" style="font-size:17px;">📥</button><input type="file" id="ing-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importIngredientExcel(this)">`:'')
+      +`<button class="icon-btn primary" id="stock-add-btn" onclick="${isIng?'showIngredientForm(null)':'showProductForm(null)'}">+</button>`;
+  }
+  }
   else if(tab==='sales')R.innerHTML='<button class="icon-btn primary" onclick="showSalesOrderForm(null)">+</button>';
   else if(tab==='purchase')R.innerHTML='<button class="icon-btn primary" onclick="showPurchaseOrderForm(null)">+</button>';
   else if(tab==='consign')R.innerHTML='<button class="icon-btn primary" onclick="showLocationForm(null)">+</button>';
@@ -1547,10 +1641,9 @@ function renderIngredientTab(tab){
       </div>
       <span class="row-value set" style="white-space:nowrap;">₩${ppg.toFixed(2)}/g</span>
     </div>`;}).join('')}</div>`).join('');
-  const excelBtn=`<div style="padding:16px 16px 8px;"><button class="btn btn-outline" onclick="triggerIngExcel()">📥 엑셀 가져오기</button><input type="file" id="ing-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importIngredientExcel(this)"></div>`;
   return list.length===0
-    ?`<div class="empty"><div class="icon">${isPackaging?'📦':'🧪'}</div><p>${isPackaging?'포장재':'원재료'}가 없습니다<br>+ 버튼으로 추가하세요</p></div>${excelBtn}`
-    :rows+excelBtn;
+    ?`<div class="empty"><div class="icon">${isPackaging?'📦':'🧪'}</div><p>${isPackaging?'포장재':'원재료'}가 없습니다<br>헤더의 + 버튼으로 추가하세요</p></div>`
+    :rows;
 }
 
 function renderProducts(){
