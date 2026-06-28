@@ -424,25 +424,41 @@ window.importIngredientExcel=function(input){
         });
       }
       if(!preview.length){toast('가져올 데이터가 없습니다','e');return;}
+      S._ingImportPreview=preview; // 전역 상태에 저장 (onclick 문자열 전달 문제 회피)
+      const existing=S.ingredients.map(i=>i.name.toLowerCase());
       showModal(`엑셀 가져오기 미리보기 (${preview.length}건)`,`
-        <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">아래 항목을 원재료에 추가합니다. 기존 동일 이름 항목은 건너뜁니다.</div>
-        <div class="row-list" style="max-height:300px;overflow-y:auto;">${preview.map(p=>`<div class="row-item"><div><div style="font-weight:600;">${p.name}</div><div style="font-size:11px;color:var(--muted);">${p.category} · ${p.package_qty||'-'}${p.package_unit} · ₩${Number(p.package_price).toLocaleString()}</div></div></div>`).join('')}</div>
-      `,[{label:'취소',cls:'btn-secondary',fn:'closeModal()'},{label:'가져오기',cls:'btn-primary',fn:`confirmIngImport(${JSON.stringify(JSON.stringify(preview))})`}]);
+        <div style="font-size:13px;color:var(--muted);margin-bottom:10px;">가져올 항목을 선택하세요. 체크 해제하면 제외됩니다.</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <button onclick="document.querySelectorAll('.ing-imp-chk').forEach(c=>c.checked=true)" style="padding:4px 10px;border:1.5px solid var(--border2);border-radius:8px;font-size:12px;cursor:pointer;background:#fff;">전체 선택</button>
+          <button onclick="document.querySelectorAll('.ing-imp-chk').forEach(c=>c.checked=false)" style="padding:4px 10px;border:1.5px solid var(--border2);border-radius:8px;font-size:12px;cursor:pointer;background:#fff;">전체 해제</button>
+        </div>
+        <div class="row-list" style="max-height:320px;overflow-y:auto;">${preview.map((p,i)=>{
+          const dup=existing.includes(p.name.toLowerCase());
+          return`<div class="row-item" style="${dup?'opacity:.5':''}">
+            <label style="display:flex;align-items:center;gap:10px;width:100%;cursor:pointer;">
+              <input type="checkbox" class="ing-imp-chk" data-idx="${i}" ${dup?'':'checked'} style="width:18px;height:18px;flex-shrink:0;">
+              <div><div style="font-weight:600;">${p.name}${dup?' <span style="color:var(--danger);font-size:11px;">(이미 등록됨)</span>':''}</div>
+              <div style="font-size:11px;color:var(--muted);">${p.category} · ${p.package_qty||'-'}${p.package_unit} · ₩${Number(p.package_price).toLocaleString()}</div></div>
+            </label>
+          </div>`;}).join('')}
+        </div>
+      `,[{label:'취소',cls:'btn-secondary',fn:'closeModal()'},{label:'가져오기',cls:'btn-primary',fn:'confirmIngImport()'}]);
       input.value='';
     }catch(err){toast('파일 파싱 오류: '+err.message,'e');}
   };
   reader.readAsBinaryString(file);
 };
 
-window.confirmIngImport=async function(jsonStr){
-  const preview=JSON.parse(jsonStr);
-  const existing=S.ingredients.map(i=>i.name.toLowerCase());
-  const toInsert=preview.filter(p=>!existing.includes(p.name.toLowerCase()));
-  if(!toInsert.length){toast('모두 이미 등록된 항목입니다','e');return;}
+window.confirmIngImport=async function(){
+  const preview=S._ingImportPreview||[];
+  const checked=[...document.querySelectorAll('.ing-imp-chk:checked')].map(el=>parseInt(el.dataset.idx));
+  const toInsert=checked.map(i=>preview[i]).filter(Boolean);
+  if(!toInsert.length){toast('선택된 항목이 없습니다','e');return;}
   try{
     const now=new Date().toISOString();
     await S.sb.from('ingredients').insert(toInsert.map(p=>({...p,created_at:now,updated_at:now})));
-    await loadIngredients();closeModal();renderIngredients();toast(`${toInsert.length}개 가져왔습니다 (중복 ${preview.length-toInsert.length}개 건너뜀)`,'s');
+    await loadIngredients();closeModal();renderIngredients();S._ingImportPreview=null;
+    toast(`${toInsert.length}개 가져왔습니다`,'s');
   }catch(e){toast('오류: '+e.message,'e');}
 };
 
