@@ -1495,7 +1495,7 @@ async function uploadProductImage(file,code){
 async function submitProduct(id){
   const name=document.getElementById('pf-name').value.trim(),code=document.getElementById('pf-code').value.trim();
   if(!name){toast('제품명은 필수입니다','e');return;}
-  if(code){const dup=S.products.find(p=>p.code===code&&p.id!==id);if(dup){toast(`이미 사용 중인 SKU입니다 (${dup.name})','e');return;}}
+  if(code){const dup=S.products.find(p=>p.code===code&&p.id!==id);if(dup){toast(`이미 사용 중인 SKU입니다 (${dup.name})`,'e');return;}}
   const catVal=document.getElementById('pf-cat').value;
   const clsVal=document.getElementById('pf-cls').value;
   const prod={id:id||undefined,name,code,category:catVal,classification:clsVal,type:document.getElementById('pf-type').value,unit_price:parseFloat(document.getElementById('pf-up').value)||0,cost_price:parseFloat(document.getElementById('pf-cp').value)||0,current_stock:parseInt(document.getElementById('pf-stock').value)||0,min_stock:parseInt(document.getElementById('pf-min').value)||0};
