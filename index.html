@@ -45,7 +45,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .icon-btn{width:36px;height:36px;border:none;background:transparent;border-radius:9px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;color:var(--text);}
 .icon-btn.primary{background:var(--primary);color:#fff;border-radius:50%;}
 /* Content */
-.content{flex:1;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch;margin-bottom:calc(var(--nav-h)+env(safe-area-inset-bottom,0px));}
+.content{flex:1;overflow-y:auto;min-height:0;padding-bottom:calc(var(--nav-h)+env(safe-area-inset-bottom,0px)+24px);}
 /* Bottom nav */
 .bnav{position:fixed;bottom:0;left:0;right:0;height:calc(var(--nav-h) + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);background:#fff;border-top:1px solid var(--border2);display:flex;align-items:flex-start;padding-top:6px;z-index:100;}
 .bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--muted);border:none;background:none;}
@@ -342,6 +342,7 @@ function showIngredientDetail(id){
       <div class="row-item"><span class="row-label">분류</span><span class="row-value set">${ing.category||'-'}</span></div>
       <div class="row-item"><span class="row-label">구매 단위</span><span class="row-value set">${ing.package_qty||'-'}${ing.package_unit||'g'}</span></div>
       <div class="row-item"><span class="row-label">구매 단가</span><span class="row-value set">₩${Number(ing.package_price||0).toLocaleString()}</span></div>
+      <div class="row-item"><span class="row-label">현재 재고</span><span class="row-value set" style="font-weight:700;color:${ing.current_stock>0?'var(--success)':'var(--danger)'};">${ing.current_stock||0} ${ing.package_unit||'개'}</span></div>
       <div class="row-item" style="background:var(--primary-l);"><span class="row-label" style="font-weight:700;">g당 단가</span><span class="row-value set" style="color:var(--primary);font-weight:700;">₩${ppg.toFixed(4)}/g</span></div>
       ${ing.density?`<div class="row-item"><span class="row-label">밀도</span><span class="row-value set">${ing.density} g/ml → ₩${(ppg/ing.density).toFixed(4)}/ml</span></div>`:''}
       ${ing.notes?`<div class="row-item"><span class="row-label">비고</span><span class="row-value set">${ing.notes}</span></div>`:''}
@@ -349,12 +350,14 @@ function showIngredientDetail(id){
   `,[{label:'수정',cls:'btn-outline',fn:`closeModal();showIngredientForm(S.ingredients.find(x=>x.id==='${id}'))`},{label:'삭제',cls:'btn-danger',fn:`deleteIngredient('${id}')`}]);
 }
 function showIngredientForm(ing){
-  const isEdit=!!ing;
+  const isEdit=!!ing&&!!ing.id;
+  const presetCat=ing?._cat||null; // 탭에서 호출 시 분류 자동설정
   const cats=['원료','향료','염료','오일','포장재','기타부자재'];
+  const selCat=ing?.category||presetCat||'원료';
   showModal(isEdit?'원재료 수정':'원재료 추가',`
-    <div class="fg"><label>품목명 *</label><input id="if-name" value="${ing?.name||''}" placeholder="예: 라벤더 에센셜오일"></div>
+    <div class="fg"><label>품목명 *</label><input id="if-name" value="${isEdit?ing.name:''}" placeholder="예: 라벤더 에센셜오일"></div>
     <div class="fg"><label>분류</label><select id="if-cat" style="width:100%;padding:10px;border:1.5px solid var(--border2);border-radius:10px;font-size:14px;">
-      ${cats.map(c=>`<option value="${c}" ${ing?.category===c?'selected':''}>${c}</option>`).join('')}
+      ${cats.map(c=>`<option value="${c}" ${selCat===c?'selected':''}>${c}</option>`).join('')}
     </select></div>
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
       <div class="fg"><label>구매 수량</label><input type="number" id="if-qty" value="${ing?.package_qty||''}" placeholder="예: 1000" min="0"></div>
@@ -365,16 +368,15 @@ function showIngredientForm(ing){
       </select></div>
     </div>
     <div class="fg"><label>구매 단가 (₩)</label><input type="number" id="if-price" value="${ing?.package_price||''}" placeholder="원" min="0"></div>
-    <div class="fg"><label>밀도 (g/ml, ml 단위 원재료만)</label><input type="number" id="if-density" value="${ing?.density||''}" placeholder="예: 0.8 (향료), 1.0 (물)" step="0.001" min="0"></div>
+    <div class="fg"><label>현재 재고량</label><input type="number" id="if-stock" value="${ing?.current_stock||0}" min="0" placeholder="0"></div>
+    <div class="fg"><label>밀도 (g/ml, ml 단위만 입력)</label><input type="number" id="if-density" value="${ing?.density||''}" placeholder="예: 0.8 (향료), 1.0 (물)" step="0.001" min="0"></div>
     <div class="fg" style="margin-bottom:0;"><label>비고</label><input id="if-notes" value="${ing?.notes||''}" placeholder="예: 0.8g/ml"></div>
-    <div style="background:var(--bg);border-radius:10px;padding:12px;margin-top:10px;font-size:13px;color:var(--muted);">
-      g당 단가 = 구매단가 ÷ 구매수량<br>ml → g 환산 필요 시 밀도 입력
-    </div>
-  `,[{label:'취소',cls:'btn-secondary',fn:'closeModal()'},{label:isEdit?'저장':'추가',cls:'btn-primary',fn:`submitIngredientForm('${ing?.id||''}')`}]);
+    <div style="background:var(--bg);border-radius:10px;padding:10px 12px;margin-top:10px;font-size:12px;color:var(--muted);">g당 단가 = 구매단가 ÷ 구매수량 · ml 사용 시 밀도 입력</div>
+  `,[{label:'취소',cls:'btn-secondary',fn:'closeModal()'},{label:isEdit?'저장':'추가',cls:'btn-primary',fn:`submitIngredientForm('${isEdit?ing.id:''}')`}]);
 }
 window.submitIngredientForm=async function(id){
   const name=document.getElementById('if-name')?.value.trim();if(!name){toast('품목명을 입력하세요','e');return;}
-  const obj={name,category:document.getElementById('if-cat')?.value,package_qty:parseFloat(document.getElementById('if-qty')?.value)||null,package_unit:document.getElementById('if-unit')?.value,package_price:parseFloat(document.getElementById('if-price')?.value)||0,density:parseFloat(document.getElementById('if-density')?.value)||null,notes:document.getElementById('if-notes')?.value.trim()||''};
+  const obj={name,category:document.getElementById('if-cat')?.value,package_qty:parseFloat(document.getElementById('if-qty')?.value)||null,package_unit:document.getElementById('if-unit')?.value,package_price:parseFloat(document.getElementById('if-price')?.value)||0,current_stock:parseInt(document.getElementById('if-stock')?.value)||0,density:parseFloat(document.getElementById('if-density')?.value)||null,notes:document.getElementById('if-notes')?.value.trim()||''};
   try{
     if(id){await S.sb.from('ingredients').update({...obj,updated_at:new Date().toISOString()}).eq('id',id);}
     else{await S.sb.from('ingredients').insert({...obj,created_at:new Date().toISOString()});}
@@ -1336,13 +1338,13 @@ window.updatePendingItem=function(i,field,val,type){S.pendingItems[i][field]=val
 window.removePendingItem=function(i,type){S.pendingItems.splice(i,1);renderPendingItems(type);};
 
 function getItemProducts(type){
-  if(type==='sales')return S.products.filter(p=>p.classification==='완제품');
-  if(type==='purchase')return S.products.filter(p=>p.classification!=='완제품');
-  return S.products;
+  // 납품서 → 제품 테이블 전체, 발주서 → 원재료(ingredients) 테이블
+  if(type==='purchase')return S.ingredients.map(i=>({id:i.id,name:i.name,code:'',unit_price:i.package_price||0,cost_price:0,current_stock:i.current_stock||0,_isIngredient:true,category:i.category}));
+  return S.products; // sales
 }
 function itemRow(p,type){
-  const t=getTotalStock(p);
-  return`<div class="sitem" onclick="addPendingItem('${p.id}','${type}')"><div><div class="sitem-name">${p.name}</div><div class="sitem-sub">${p.code}${p.classification?` · ${p.classification}`:''} · 재고 ${t}개 · ₩${Number(p.unit_price||0).toLocaleString()}</div></div><span class="badge badge-primary">${t}</span></div>`;
+  const t=p._isIngredient?(p.current_stock||0):getTotalStock(p);
+  return`<div class="sitem" onclick="addPendingItem('${p.id}','${type}','${p._isIngredient?'ing':'prod'}')"><div><div class="sitem-name">${p.name}</div><div class="sitem-sub">${p.code||p.category||''} · 재고 ${t}${p._isIngredient?'개':'개'} · ₩${Number(p.unit_price||0).toLocaleString()}</div></div><span class="badge badge-primary">${t}</span></div>`;
 }
 function openAddItemModal(type){
   const pool=getItemProducts(type);
@@ -1361,8 +1363,8 @@ window.filterItemList=function(q,type){
   el.innerHTML=f.length===0?`<div style="color:var(--muted);padding:20px;text-align:center;font-size:13px;">검색 결과 없음</div>`:f.map(p=>itemRow(p,type)).join('');
 };
 
-window.addPendingItem=function(productId,type){
-  const p=S.products.find(x=>x.id===productId);if(!p)return;
+window.addPendingItem=function(productId,type,src){
+  const p=src==='ing'?S.ingredients.find(x=>x.id===productId):S.products.find(x=>x.id===productId);if(!p)return;
   const exists=S.pendingItems.find(i=>i.product_id===productId);
   if(exists){exists.quantity++;}
   else{S.pendingItems.push({product_id:p.id,product_name:p.name,product_code:p.code,quantity:1,unit_price:p.unit_price||0,cost_price:p.cost_price||0});}
@@ -1530,22 +1532,39 @@ function pThumbHtml(p){
   return`<div class="prod-thumb-ph" style="background:${p.type==='oem'?'var(--warning-l)':'var(--primary-l)'}">${p.type==='oem'?'🔄':'🏭'}</div>`;
 }
 
+const PKG_CATS=['포장재','기타부자재','기타'];
+function renderIngredientTab(tab){
+  const isPackaging=tab==='packaging';
+  const list=S.ingredients.filter(i=>isPackaging?PKG_CATS.includes(i.category||''):!PKG_CATS.includes(i.category||''));
+  const grouped={};list.forEach(i=>{const c=i.category||'기타';if(!grouped[c])grouped[c]=[];grouped[c].push(i);});
+  const rows=Object.entries(grouped).map(([cat,ings])=>`<div class="section-title">${cat}</div><div class="row-list">${ings.map(ing=>{
+    const ppg=ingPricePerG(ing);
+    const stockBadge=ing.current_stock>0?`<span class="badge badge-success" style="margin-left:4px;">재고 ${ing.current_stock}${ing.package_unit||'개'}</span>`:ing.current_stock===0?`<span class="badge badge-gray" style="margin-left:4px;">재고 없음</span>`:'';
+    return`<div class="row-item" onclick="showIngredientDetail('${ing.id}')">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;">${ing.name}${stockBadge}</div>
+        <div style="font-size:12px;color:var(--muted);">${ing.package_qty||'-'}${ing.package_unit||'g'} · ₩${Number(ing.package_price||0).toLocaleString()}${ing.density?` · ${ing.density}g/ml`:''}</div>
+      </div>
+      <span class="row-value set" style="white-space:nowrap;">₩${ppg.toFixed(2)}/g</span>
+    </div>`;}).join('')}</div>`).join('');
+  const excelBtn=`<div style="padding:16px 16px 8px;"><button class="btn btn-outline" onclick="triggerIngExcel()">📥 엑셀 가져오기</button><input type="file" id="ing-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importIngredientExcel(this)"></div>`;
+  return list.length===0
+    ?`<div class="empty"><div class="icon">${isPackaging?'📦':'🧪'}</div><p>${isPackaging?'포장재':'원재료'}가 없습니다<br>+ 버튼으로 추가하세요</p></div>${excelBtn}`
+    :rows+excelBtn;
+}
+
 function renderProducts(){
-  // 세그먼트 탭 헤더 + 하위 라우터
-  const segBar=`<div style="display:flex;background:#fff;border-bottom:1px solid var(--border2);padding:0 16px;">
-    ${[['products','📦 제품'],['ingredients','🧪 원재료']].map(([v,l])=>`<button onclick="setStockTab('${v}')" style="flex:1;padding:12px 0;border:none;background:none;font-size:14px;font-weight:700;cursor:pointer;border-bottom:2px solid ${S.stockTab===v?'var(--primary)':'transparent'};color:${S.stockTab===v?'var(--primary)':'var(--muted)'};">${l}</button>`).join('')}
+  const tabs=[['products','📦 제품'],['ingredients','🧪 원재료'],['packaging','📦 포장재/기타']];
+  const segBar=`<div style="display:flex;background:#fff;border-bottom:1px solid var(--border2);padding:0 8px;position:sticky;top:0;z-index:20;">
+    ${tabs.map(([v,l])=>`<button onclick="setStockTab('${v}')" style="flex:1;padding:11px 4px;border:none;background:none;font-size:12px;font-weight:700;cursor:pointer;border-bottom:2px solid ${S.stockTab===v?'var(--primary)':'transparent'};color:${S.stockTab===v?'var(--primary)':'var(--muted)'};">${l}</button>`).join('')}
   </div>`;
-  if(S.stockTab==='ingredients'){
-    // 원재료 뷰
-    const cats=[...new Set(S.ingredients.map(i=>i.category).filter(Boolean))];
-    const grouped={};S.ingredients.forEach(i=>{const c=i.category||'기타';if(!grouped[c])grouped[c]=[];grouped[c].push(i);});
-    const rows=Object.entries(grouped).map(([cat,list])=>`<div class="section-title">${cat}</div><div class="row-list">${list.map(ing=>{const ppg=ingPricePerG(ing);return`<div class="row-item" onclick="showIngredientDetail('${ing.id}')"><div><div style="font-weight:700;">${ing.name}</div><div style="font-size:12px;color:var(--muted);">${ing.package_qty||'-'}${ing.package_unit||'g'} / ₩${Number(ing.package_price||0).toLocaleString()}${ing.density?` · ${ing.density}g/ml`:''}</div></div><span class="row-value set">₩${ppg.toFixed(2)}/g</span></div>`;}).join('')}</div>`).join('');
-    const headerBtn=document.getElementById('stock-add-btn');if(headerBtn)headerBtn.onclick=()=>showIngredientForm(null);
-    document.getElementById('content').innerHTML=segBar+(S.ingredients.length===0?`<div class="empty"><div class="icon">🧪</div><p>원재료가 없습니다<br>+ 버튼으로 추가하세요</p><button class="btn btn-outline" style="margin-top:12px;" onclick="triggerIngExcel()">📥 엑셀 가져오기</button><input type="file" id="ing-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importIngredientExcel(this)"></div>`:rows+`<div style="padding:16px;"><button class="btn btn-outline" onclick="triggerIngExcel()">📥 엑셀 가져오기</button><input type="file" id="ing-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importIngredientExcel(this)"></div>`);
+  if(S.stockTab==='ingredients'||S.stockTab==='packaging'){
+    const btn=document.getElementById('stock-add-btn');if(btn)btn.onclick=()=>showIngredientForm(S.stockTab==='packaging'?{_cat:'포장재'}:null);
+    document.getElementById('content').innerHTML=segBar+renderIngredientTab(S.stockTab);
     return;
   }
-  // 제품 뷰 (기존 코드)
-  const headerBtn=document.getElementById('stock-add-btn');if(headerBtn)headerBtn.onclick=()=>showProductForm(null);
+  // 제품 뷰
+  const btn=document.getElementById('stock-add-btn');if(btn)btn.onclick=()=>showProductForm(null);
   const cats=getCategories();const clsfs=getClassifications();const labels=getTypeLabels();
   const f=S.pFilters||{};const filtered=filteredProducts();
   const activeCount=Object.values(f).filter(Boolean).length;
@@ -1738,7 +1757,8 @@ function showProductForm(p){
   S.pendingImageFile=null;
   const imgHtml=p?.image_url?`<img src="${p.image_url}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-size:32px;">📷</span>`;
   const catOpts=`<option value="">선택 안함</option>`+cats.map(c=>`<option value="${c}" ${p?.category===c?'selected':''}>${c}</option>`).join('');
-  const clsOpts=`<option value="">선택 안함</option>`+clsfs.map(c=>`<option value="${c}" ${p?.classification===c?'selected':''}>${c}</option>`).join('');
+  // 분류 필드 제거 - 재고 탭에서 자동 구분
+  const clsOpts='';
   showModal(isEdit?'제품 수정':'제품 추가',`
     <div class="photo-upload-area" onclick="document.getElementById('pf-img-input').click()">
       <div class="photo-upload-box" id="pf-img-box">${imgHtml}</div>
@@ -1784,7 +1804,7 @@ function showProductForm(p){
     <div class="fg"><label>제품 코드/SKU <span style="font-size:11px;color:var(--muted);font-weight:400;">(선택 · 생성기에서 적용하거나 직접 입력)</span></label><input id="pf-code" value="${p?.code||''}" placeholder="비워두면 자동 부여 안함" style="font-family:monospace;font-weight:700;"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div class="fg"><label>카테고리</label><select id="pf-cat">${catOpts}</select></div>
-      <div class="fg"><label>분류</label><select id="pf-cls">${clsOpts}</select></div>
+      <!-- 분류 필드 제거 (재고 탭에서 자동 구분) -->
     </div>
     <div class="fg"><label>생산 유형</label><select id="pf-type"><option value="own" ${p?.type!=='oem'?'selected':''}>${labels.own}</option><option value="oem" ${p?.type==='oem'?'selected':''}>${labels.oem}</option></select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -1848,7 +1868,7 @@ async function submitProduct(id){
   if(!name){toast('제품명은 필수입니다','e');return;}
   if(code){const dup=S.products.find(p=>p.code===code&&p.id!==id);if(dup){toast(`이미 사용 중인 SKU입니다 (${dup.name})`,'e');return;}}
   const catVal=document.getElementById('pf-cat').value;
-  const clsVal=document.getElementById('pf-cls').value;
+  const clsVal='';
   const cmode=document.getElementById('pf-cmode')?.value||'manual';
   const prod={id:id||undefined,name,code,category:catVal,classification:clsVal,type:document.getElementById('pf-type').value,unit_price:parseFloat(document.getElementById('pf-up').value)||0,cost_price:cmode==='manual'?(parseFloat(document.getElementById('pf-cp').value)||0):(parseFloat(document.getElementById('pf-cp').value)||0),current_stock:parseInt(document.getElementById('pf-stock').value)||0,min_stock:parseInt(document.getElementById('pf-min').value)||0,weight_g:parseFloat(document.getElementById('pf-weight')?.value)||null,weight_unit:document.getElementById('pf-wunit')?.value||'g',cost_mode:cmode};
   if(!id)delete prod.id;
@@ -2572,6 +2592,7 @@ ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS warehouse_name TEXT DEFAULT ''
 CREATE TABLE IF NOT EXISTS ingredients (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, name TEXT NOT NULL, category TEXT DEFAULT '원료', package_qty DECIMAL(10,3), package_unit TEXT DEFAULT 'g', package_price DECIMAL(10,2) DEFAULT 0, density DECIMAL(8,4), notes TEXT DEFAULT '', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now());
 CREATE TABLE IF NOT EXISTS recipes (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, product_id UUID REFERENCES products(id) ON DELETE CASCADE, batch_weight_g INTEGER DEFAULT 1000, notes TEXT DEFAULT '', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now());
 CREATE TABLE IF NOT EXISTS recipe_items (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, recipe_id UUID REFERENCES recipes(id) ON DELETE CASCADE, ingredient_id UUID REFERENCES ingredients(id) ON DELETE SET NULL, ingredient_name TEXT DEFAULT '', amount_g DECIMAL(10,3) DEFAULT 0, amount_unit TEXT DEFAULT 'g');
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS current_stock INTEGER DEFAULT 0;
 ALTER TABLE ingredients ENABLE ROW LEVEL SECURITY; ALTER TABLE recipes ENABLE ROW LEVEL SECURITY; ALTER TABLE recipe_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public" ON ingredients FOR ALL USING (true) WITH CHECK (true); CREATE POLICY "Public" ON recipes FOR ALL USING (true) WITH CHECK (true); CREATE POLICY "Public" ON recipe_items FOR ALL USING (true) WITH CHECK (true);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS weight_g DECIMAL(10,2); ALTER TABLE products ADD COLUMN IF NOT EXISTS weight_unit TEXT DEFAULT 'g'; ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_mode TEXT DEFAULT 'manual';
