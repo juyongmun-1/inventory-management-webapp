@@ -1064,9 +1064,7 @@ function setHdr(tab){
     const isIng=S.stockTab==='ingredients'||S.stockTab==='packaging';
     R.innerHTML=(isIng?`<button class="icon-btn" onclick="triggerIngExcel()" title="엑셀 가져오기" style="font-size:17px;">📥</button><input type="file" id="ing-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importIngredientExcel(this)">`:'')
       +`<button class="icon-btn primary" id="stock-add-btn" onclick="${isIng?'showIngredientForm(null)':'showProductForm(null)'}">+</button>`;
-  }
-  }
-  else if(tab==='sales')R.innerHTML='<button class="icon-btn primary" onclick="showSalesOrderForm(null)">+</button>';
+  }else if(tab==='sales')R.innerHTML='<button class="icon-btn primary" onclick="showSalesOrderForm(null)">+</button>';
   else if(tab==='purchase')R.innerHTML='<button class="icon-btn primary" onclick="showPurchaseOrderForm(null)">+</button>';
   else if(tab==='consign')R.innerHTML='<button class="icon-btn primary" onclick="showLocationForm(null)">+</button>';
   else if(tab==='warehouses')R.innerHTML='<button class="icon-btn primary" onclick="showWarehouseForm(null)">+</button>';
