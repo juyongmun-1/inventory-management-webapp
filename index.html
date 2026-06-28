@@ -261,7 +261,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
   <div class="content" id="content"></div>
   <div class="bnav">
-    <button class="bnav-item" id="nav-products" onclick="go('products')"><span class="bnav-icon">📦</span><span class="bnav-label">제품</span></button>
+    <button class="bnav-item" id="nav-products" onclick="go('products')"><span class="bnav-icon">📦</span><span class="bnav-label">재고</span></button>
     <button class="bnav-item" id="nav-sales" onclick="go('sales')"><span class="bnav-icon">🧾</span><span class="bnav-label">납품서</span></button>
     <button class="bnav-item active" id="nav-dash" onclick="go('dash')"><span class="bnav-icon">🏠</span><span class="bnav-label">홈</span></button>
     <button class="bnav-item" id="nav-consign" onclick="go('consign')"><span class="bnav-icon">🚚</span><span class="bnav-label">위탁처</span></button>
@@ -292,6 +292,7 @@ const S={
   ingredients:[],recipes:[],recipeItems:[],
   warehouses:[],warehouseStocks:[],
   cfg:null,sb:null,
+  stockTab:'products',
   pSearch:'',pFilter:'all',pSort:'name',
   pFilters:{stock:null,type:null,classification:null,category:null,location:null},
   txType:'in',txProduct:null,txLocation:null,txWarehouse:null,txToWarehouse:null,
@@ -962,13 +963,13 @@ function go(tab){
 }
 
 function setHdr(tab){
-  const titles={dash:'홈',products:'제품 관리',sales:'납품서',purchase:'발주서',more:'더보기',inout:'입출고',consign:'위탁처',history:'거래 이력',warehouses:'창고 관리',analytics:'매출 현황',customers:'고객 관리',suppliers:'공급처 관리',vat:'부가세 계산기',notices:'공지사항',ingredients:'원재료 관리',recipe:'레시피 · 원가계산'};
+  const titles={dash:'홈',products:'재고 관리',sales:'납품서',purchase:'발주서',more:'더보기',inout:'입출고',consign:'위탁처',history:'거래 이력',warehouses:'창고 관리',analytics:'매출 현황',customers:'고객 관리',suppliers:'공급처 관리',vat:'부가세 계산기',notices:'공지사항',ingredients:'원재료 관리',recipe:'레시피 · 원가계산'};
   document.getElementById('hdr-title').textContent=titles[tab]||'';
   const L=document.getElementById('hdr-left');
   const R=document.getElementById('hdr-right');
   const isMain=['dash','products','sales','consign','more'].includes(tab);
   L.innerHTML=isMain?'':'<button class="icon-btn" onclick="go(\'more\')">‹</button>';
-  if(tab==='products')R.innerHTML='<button class="icon-btn primary" onclick="showProductForm(null)">+</button>';
+  if(tab==='products')R.innerHTML=`<button class="icon-btn primary" onclick="${S.stockTab==='ingredients'?'showIngredientForm(null)':'showProductForm(null)'}" id="stock-add-btn">+</button>`;
   else if(tab==='sales')R.innerHTML='<button class="icon-btn primary" onclick="showSalesOrderForm(null)">+</button>';
   else if(tab==='purchase')R.innerHTML='<button class="icon-btn primary" onclick="showPurchaseOrderForm(null)">+</button>';
   else if(tab==='consign')R.innerHTML='<button class="icon-btn primary" onclick="showLocationForm(null)">+</button>';
@@ -1530,6 +1531,21 @@ function pThumbHtml(p){
 }
 
 function renderProducts(){
+  // 세그먼트 탭 헤더 + 하위 라우터
+  const segBar=`<div style="display:flex;background:#fff;border-bottom:1px solid var(--border2);padding:0 16px;">
+    ${[['products','📦 제품'],['ingredients','🧪 원재료']].map(([v,l])=>`<button onclick="setStockTab('${v}')" style="flex:1;padding:12px 0;border:none;background:none;font-size:14px;font-weight:700;cursor:pointer;border-bottom:2px solid ${S.stockTab===v?'var(--primary)':'transparent'};color:${S.stockTab===v?'var(--primary)':'var(--muted)'};">${l}</button>`).join('')}
+  </div>`;
+  if(S.stockTab==='ingredients'){
+    // 원재료 뷰
+    const cats=[...new Set(S.ingredients.map(i=>i.category).filter(Boolean))];
+    const grouped={};S.ingredients.forEach(i=>{const c=i.category||'기타';if(!grouped[c])grouped[c]=[];grouped[c].push(i);});
+    const rows=Object.entries(grouped).map(([cat,list])=>`<div class="section-title">${cat}</div><div class="row-list">${list.map(ing=>{const ppg=ingPricePerG(ing);return`<div class="row-item" onclick="showIngredientDetail('${ing.id}')"><div><div style="font-weight:700;">${ing.name}</div><div style="font-size:12px;color:var(--muted);">${ing.package_qty||'-'}${ing.package_unit||'g'} / ₩${Number(ing.package_price||0).toLocaleString()}${ing.density?` · ${ing.density}g/ml`:''}</div></div><span class="row-value set">₩${ppg.toFixed(2)}/g</span></div>`;}).join('')}</div>`).join('');
+    const headerBtn=document.getElementById('stock-add-btn');if(headerBtn)headerBtn.onclick=()=>showIngredientForm(null);
+    document.getElementById('content').innerHTML=segBar+(S.ingredients.length===0?`<div class="empty"><div class="icon">🧪</div><p>원재료가 없습니다<br>+ 버튼으로 추가하세요</p><button class="btn btn-outline" style="margin-top:12px;" onclick="triggerIngExcel()">📥 엑셀 가져오기</button><input type="file" id="ing-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importIngredientExcel(this)"></div>`:rows+`<div style="padding:16px;"><button class="btn btn-outline" onclick="triggerIngExcel()">📥 엑셀 가져오기</button><input type="file" id="ing-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importIngredientExcel(this)"></div>`);
+    return;
+  }
+  // 제품 뷰 (기존 코드)
+  const headerBtn=document.getElementById('stock-add-btn');if(headerBtn)headerBtn.onclick=()=>showProductForm(null);
   const cats=getCategories();const clsfs=getClassifications();const labels=getTypeLabels();
   const f=S.pFilters||{};const filtered=filteredProducts();
   const activeCount=Object.values(f).filter(Boolean).length;
@@ -1544,7 +1560,7 @@ function renderProducts(){
   if(f.category)activeTags.push([f.category,'category']);
   if(f.locName)activeTags.push(['🚚 '+f.locName,'locName']);
 
-  document.getElementById('content').innerHTML=`
+  document.getElementById('content').innerHTML=segBar+`
     <div style="background:#fff;position:sticky;top:0;z-index:10;border-bottom:1px solid var(--border2);">
       <div style="display:flex;align-items:center;gap:8px;padding:10px 16px 8px;">
         <div class="search-box" style="flex:1;margin:0;"><input type="search" id="prod-search" class="search-input" placeholder="제품명 또는 코드 검색..." value="${S.pSearch}" oninput="onProdSearch(this.value)"></div>
@@ -1592,6 +1608,7 @@ function filteredProducts(){
   else if(sort==='created')arr.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
   return arr;
 }
+function setStockTab(tab){S.stockTab=tab;renderProducts();}
 function togglePF(key,val){
   if(!S.pFilters)S.pFilters={stock:null,type:null,classification:null,category:null,location:null,locName:null};
   S.pFilters[key]=S.pFilters[key]===val?null:val;
@@ -2132,7 +2149,6 @@ function renderMore(){
     <div style="padding:16px 0;">
       <div class="section-title">원가 관리</div>
       <div class="row-list">
-        <div class="row-item" onclick="go('ingredients')"><span class="row-label">🧪 원재료 관리</span><span class="row-arrow">›</span></div>
         <div class="row-item" onclick="go('recipe')"><span class="row-label">📋 레시피 · 원가계산</span><span class="row-arrow">›</span></div>
       </div>
       <div class="section-title">공지</div>
