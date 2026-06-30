@@ -492,16 +492,28 @@ window.deleteIngredient=async function(id){
 /* ── 제품별 원가 구성 항목 (localStorage) ── */
 function getCostItems(pid){const s=localStorage.getItem('ci_'+pid);return s?JSON.parse(s):[];}
 function saveCostItems(pid,items){localStorage.setItem('ci_'+pid,JSON.stringify(items));}
-// type: 'fixed'=고정금액/개, 'pct_material'=재료비%, 'pct_sale'=판매가%
+function getGlobalCostItems(){const s=localStorage.getItem('ci_global');return s?JSON.parse(s):[];}
+function saveGlobalCostItems(items){localStorage.setItem('ci_global',JSON.stringify(items));}
+// type: 'fixed'=고정금액/개, 'pct_material'=재료비%, 'pct_sale'=판매가%, 'ingredient'=포장재/원재료 참조
+function costItemAmount(it,materialCost,salePrice){
+  if(it.type==='fixed')return it.value;
+  if(it.type==='pct_sale')return salePrice*(it.value/100);
+  if(it.type==='ingredient'){
+    const ing=S.ingredients.find(x=>x.id===it.ingredientId);
+    if(!ing)return 0;
+    const unitPrice=ing.package_qty?ing.package_price/ing.package_qty:(ing.package_price||0);
+    return unitPrice*(it.qty||1);
+  }
+  return 0; // pct_material은 lossPct로 별도 처리
+}
 function calcCostItems(pid,materialCost){
   const p=S.products.find(x=>x.id===pid);
   const salePrice=p?.unit_price||0;
-  const items=getCostItems(pid);
+  const items=[...getGlobalCostItems().map(it=>({...it,_global:true})),...getCostItems(pid)];
   let extra=0,lossPct=0;
   items.forEach(it=>{
-    if(it.type==='fixed')extra+=it.value;
-    else if(it.type==='pct_material')lossPct+=it.value/100;
-    else if(it.type==='pct_sale')extra+=salePrice*(it.value/100);
+    if(it.type==='pct_material')lossPct+=it.value/100;
+    else extra+=costItemAmount(it,materialCost,salePrice);
   });
   return{extra,lossPct,items,total:materialCost*(1+lossPct)+extra};
 }
@@ -540,8 +552,12 @@ function unitMaterialCostOnly(productId,p){
 
 function renderRecipePage(){
   const prods=S.products; // 분류 제거로 모든 제품 표시
+  const gCount=getGlobalCostItems().length;
   document.getElementById('content').innerHTML=`
     <div style="padding:16px;">
+      <button class="btn btn-outline" style="width:100%;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="showGlobalCostItems()">
+        🌐 전체 제품 일괄적용 원가 항목${gCount>0?` (${gCount}개 적용중)`:''}
+      </button>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <span style="font-size:13px;color:var(--muted);">제품을 선택하여 레시피를 설정하세요.</span>
         <button onclick="triggerRecipeExcel()" style="padding:6px 12px;border:1.5px solid var(--border2);border-radius:20px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;">📥 레시피 가져오기</button>
@@ -663,14 +679,18 @@ function showRecipeEditor(productId){
       <button class="oi-del" onclick="deleteRecipeItem('${ri.id}','${productId}')">×</button>
     </div>`;}).join('');
 
-  const ciTypeLabel={fixed:'₩/개 고정',pct_material:'재료비 %',pct_sale:'판매가 %'};
-  const ciRows=ci.items.map((it,i)=>{
-    const amt=it.type==='fixed'?it.value:it.type==='pct_material'?(matCost*it.value/100):(salePrice*it.value/100);
-    return`<div class="order-item-row" style="margin-bottom:2px;">
-      <div class="oi-name"><div>${it.name}</div><div class="oi-sub">${ciTypeLabel[it.type]||it.type} · ${it.value}${it.type==='fixed'?'원':'%'}</div></div>
+  const ciTypeLabel={fixed:'₩/개 고정',pct_material:'재료비 %',pct_sale:'판매가 %',ingredient:'포장재/원재료'};
+  // 글로벌 항목과 제품별 항목을 구분해 인덱스 추적 (제품별만 삭제 가능)
+  let prodIdx=-1;
+  const ciRows=ci.items.map((it)=>{
+    if(!it._global)prodIdx++;
+    const amt=it.type==='pct_material'?(matCost*it.value/100):costItemAmount(it,matCost,salePrice);
+    const valLabel=it.type==='ingredient'?`${it.qty||1}개`:it.type==='fixed'?`${it.value}원`:`${it.value}%`;
+    return`<div class="order-item-row" style="margin-bottom:2px;${it._global?'opacity:.75;':''}">
+      <div class="oi-name"><div>${it.name}${it._global?' <span style="font-size:10px;color:var(--primary);">(전체적용)</span>':''}</div><div class="oi-sub">${ciTypeLabel[it.type]||it.type} · ${valLabel}</div></div>
       <div class="oi-qty" style="font-size:11px;color:var(--muted);">≈₩${amt.toFixed(0)}</div>
       <div class="oi-price"></div>
-      <button class="oi-del" onclick="removeCostItem('${productId}',${i})">×</button>
+      ${it._global?'':`<button class="oi-del" onclick="removeCostItem('${productId}',${prodIdx})">×</button>`}
     </div>`;}).join('');
 
   showModal(`레시피 — ${p.name}`,`
@@ -704,8 +724,20 @@ function showRecipeEditor(productId){
   `,[{label:'닫기',cls:'btn-secondary',fn:'closeModal()'},{label:'원가 자동 적용',cls:'btn-primary',fn:`applyRecipeCost('${productId}')`}]);
 }
 
-window.showCostItemForm=function(productId){
+window.showCostItemForm=function(productId,isGlobal){
+  const backFn=isGlobal?'showGlobalCostItems()':`showRecipeEditor('${productId}')`;
   showModal('원가 항목 추가',`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      <button class="btn btn-secondary" onclick="this.closest('.sheet')&&showCostItemManualForm(${JSON.stringify(productId)},${!!isGlobal})">✏️ 직접 입력</button>
+      <button class="btn btn-secondary" onclick="showCostItemIngPicker(${JSON.stringify(productId)},${!!isGlobal})">📦 포장재 선택</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);">직접 입력: 인건비·홍보비·로스율 등 금액/비율<br>포장재 선택: 재고관리에 등록한 박스·라벨 등 단가 연동</div>
+  `,[{label:'닫기',cls:'btn-secondary',fn:backFn}]);
+};
+
+window.showCostItemManualForm=function(productId,isGlobal){
+  const backFn=isGlobal?'showGlobalCostItems()':`showRecipeEditor('${productId}')`;
+  showModal('원가 항목 직접 입력',`
     <div class="fg"><label>항목명</label><input id="ci-name" placeholder="예: 인건비, 홍보비, 로스율"></div>
     <div class="fg"><label>유형</label>
       <select id="ci-type" style="width:100%;padding:10px;border:1.5px solid var(--border2);border-radius:10px;font-size:14px;" onchange="(function(v){document.getElementById('ci-unit').textContent=v==='fixed'?'원/개':'%';})(this.value)">
@@ -720,18 +752,44 @@ window.showCostItemForm=function(productId){
         <span id="ci-unit" style="font-size:14px;font-weight:600;color:var(--muted);">원/개</span>
       </div>
     </div>
-  `,[{label:'취소',cls:'btn-secondary',fn:`showRecipeEditor('${productId}')`},{label:'추가',cls:'btn-primary',fn:`addCostItem('${productId}')`}]);
+  `,[{label:'취소',cls:'btn-secondary',fn:backFn},{label:'추가',cls:'btn-primary',fn:`addCostItem(${JSON.stringify(productId)},${!!isGlobal})`}]);
 };
 
-window.addCostItem=function(productId){
+window.showCostItemIngPicker=function(productId,isGlobal){
+  const backFn=isGlobal?'showGlobalCostItems()':`showRecipeEditor('${productId}')`;
+  const pkgItems=S.ingredients.filter(i=>PKG_CATS.includes(i.category||''));
+  if(!pkgItems.length){toast('포장재/기타에 등록된 항목이 없습니다','e');return;}
+  showModal('포장재 선택',`
+    <div class="row-list">${pkgItems.map(ing=>{
+      const unitPrice=ing.package_qty?ing.package_price/ing.package_qty:(ing.package_price||0);
+      return`<div class="row-item" onclick="selectCostItemIng(${JSON.stringify(productId)},${!!isGlobal},'${ing.id}','${ing.name.replace(/'/g,"\\'")}',${unitPrice})"><div><div style="font-weight:700;">${ing.name}</div><div style="font-size:12px;color:var(--muted);">₩${unitPrice.toFixed(0)}/${ing.package_unit==='개'?'개':ing.package_unit||'개'}</div></div><span class="row-arrow">›</span></div>`;
+    }).join('')}</div>
+  `,[{label:'취소',cls:'btn-secondary',fn:backFn}]);
+};
+
+window.selectCostItemIng=function(productId,isGlobal,ingId,ingName,unitPrice){
+  const backFn=isGlobal?'showGlobalCostItems()':`showRecipeEditor('${productId}')`;
+  showModal(`수량 입력 — ${ingName}`,`
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px;">단가 ₩${unitPrice.toFixed(0)}/개</div>
+    <div class="fg" style="margin-bottom:0;"><label>제품 1개당 사용 수량</label><input type="number" id="ci-ing-qty" value="1" min="0.01" step="0.01" style="width:100%;padding:10px;border:1.5px solid var(--border2);border-radius:10px;font-size:16px;"></div>
+  `,[{label:'취소',cls:'btn-secondary',fn:backFn},{label:'추가',cls:'btn-primary',fn:`addCostItemIng(${JSON.stringify(productId)},${!!isGlobal},'${ingId}','${ingName.replace(/'/g,"\\'")}')`}]);
+};
+
+window.addCostItemIng=function(productId,isGlobal,ingId,ingName){
+  const qty=parseFloat(document.getElementById('ci-ing-qty')?.value)||1;
+  const item={name:ingName,type:'ingredient',ingredientId:ingId,qty};
+  if(isGlobal){const items=getGlobalCostItems();items.push(item);saveGlobalCostItems(items);showGlobalCostItems();}
+  else{const items=getCostItems(productId);items.push(item);saveCostItems(productId,items);showRecipeEditor(productId);}
+  toast('추가됨','s');
+};
+
+window.addCostItem=function(productId,isGlobal){
   const name=document.getElementById('ci-name')?.value.trim();
   const type=document.getElementById('ci-type')?.value;
   const value=parseFloat(document.getElementById('ci-value')?.value)||0;
   if(!name||value<=0){toast('항목명과 값을 입력하세요','e');return;}
-  const items=getCostItems(productId);
-  items.push({name,type,value});
-  saveCostItems(productId,items);
-  showRecipeEditor(productId);
+  if(isGlobal){const items=getGlobalCostItems();items.push({name,type,value});saveGlobalCostItems(items);showGlobalCostItems();}
+  else{const items=getCostItems(productId);items.push({name,type,value});saveCostItems(productId,items);showRecipeEditor(productId);}
   toast('추가됨','s');
 };
 
@@ -740,6 +798,24 @@ window.removeCostItem=function(productId,idx){
   items.splice(idx,1);
   saveCostItems(productId,items);
   showRecipeEditor(productId);
+};
+
+/* 전제품 일괄적용 (글로벌) 원가 항목 관리 */
+window.showGlobalCostItems=function(){
+  const items=getGlobalCostItems();
+  const typeLabel={fixed:'₩/개 고정',pct_material:'재료비 %',pct_sale:'판매가 %',ingredient:'포장재/원재료'};
+  const rows=items.map((it,i)=>{
+    const valLabel=it.type==='ingredient'?`${it.qty||1}개`:it.type==='fixed'?`${it.value}원`:`${it.value}%`;
+    return`<div class="row-item"><div><div style="font-weight:700;">${it.name}</div><div style="font-size:12px;color:var(--muted);">${typeLabel[it.type]||it.type} · ${valLabel}</div></div><button class="oi-del" onclick="removeGlobalCostItem(${i})">×</button></div>`;
+  }).join('');
+  showModal('전체 적용 원가 항목',`
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">여기 추가한 항목은 모든 제품의 자동 원가계산에 공통 반영됩니다.<br>(홍보비·로스율·공통 포장재 등)</div>
+    <div class="row-list" style="margin-bottom:12px;">${rows||'<div style="text-align:center;color:var(--muted);padding:12px;font-size:13px;">등록된 항목이 없습니다</div>'}</div>
+    <button class="btn btn-outline" onclick="showCostItemForm(null,true)">+ 항목 추가</button>
+  `,[{label:'닫기',cls:'btn-secondary',fn:'closeModal();renderRecipePage()'}]);
+};
+window.removeGlobalCostItem=function(idx){
+  const items=getGlobalCostItems();items.splice(idx,1);saveGlobalCostItems(items);showGlobalCostItems();
 };
 
 window.showAddRecipeItem=function(productId){
@@ -2404,7 +2480,7 @@ async function confirmDeleteWarehouse(id){
 function renderConsign(){
   document.getElementById('content').innerHTML=S.locations.length===0
     ?`<div class="empty"><div class="icon">🚚</div><p>위탁처가 없습니다</p></div>`
-    :`<div class="row-list">${S.locations.map(loc=>{const stocks=S.cstocks.filter(s=>s.location_id===loc.id);const total=stocks.reduce((a,s)=>a+s.quantity,0);return`<div class="row-item" onclick="showLocationDetail('${loc.id}')"><div><div style="font-weight:700;">${loc.name}</div><div style="font-size:12px;color:var(--muted);">${loc.contact||'연락처 없음'}</div></div><span class="row-value"><span class="badge badge-purple">위탁 ${total}개</span> ›</span></div>`;}).join('')}</div>`;
+    :`<div class="row-list">${S.locations.map(loc=>{const stocks=S.cstocks.filter(s=>s.location_id===loc.id);const total=stocks.reduce((a,s)=>a+s.quantity,0);return`<div class="row-item" onclick="showLocationDetail('${loc.id}')"><div><div style="font-weight:700;">${loc.name}</div><div style="font-size:12px;color:var(--muted);">${loc.contact||'연락처 없음'}${loc.commission_rate>0?` · 수수료 ${loc.commission_rate}%`:''}</div></div><span class="row-value"><span class="badge badge-purple">위탁 ${total}개</span> ›</span></div>`;}).join('')}</div>`;
 }
 
 function showLocationDetail(id){
@@ -2415,6 +2491,7 @@ function showLocationDetail(id){
   showModal(loc.name,`
     <div style="text-align:center;margin-bottom:16px;"><div style="font-size:36px;">🚚</div><div style="font-size:36px;font-weight:900;color:var(--purple);">${totalQty}</div><div style="font-size:12px;color:var(--muted);">총 위탁 재고</div></div>
     ${loc.contact?`<div class="row-item" style="padding:10px 0;"><span class="row-label">연락처</span><span class="row-value set">${loc.contact}</span></div>`:''}
+    ${loc.commission_rate>0?`<div class="row-item" style="padding:10px 0;"><span class="row-label">수수료율</span><span class="row-value set" style="color:var(--danger);font-weight:700;">${loc.commission_rate}%</span></div>`:''}
     ${stocks.length>0?`<div style="margin-top:12px;">${stockRows}</div>`:'<div style="text-align:center;color:var(--muted);padding:16px;font-size:14px;">위탁 제품이 없습니다</div>'}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;">
       <button class="btn btn-primary" onclick="closeModal();S.txLocation=S.locations.find(l=>l.id==='${id}');go('inout');setTxType('send_consignment')">🚚 발송</button>
@@ -2428,12 +2505,13 @@ function showLocationForm(loc){
     <div class="fg"><label>위탁처 이름 *</label><input id="lf-name" value="${loc?.name||''}" placeholder="예: 강남 편의점"></div>
     <div class="fg"><label>연락처</label><input id="lf-contact" value="${loc?.contact||''}" placeholder="010-xxxx-xxxx"></div>
     <div class="fg"><label>주소</label><input id="lf-addr" value="${loc?.address||''}" placeholder="주소"></div>
+    <div class="fg"><label>수수료율 (%)</label><input type="number" id="lf-commission" value="${loc?.commission_rate||''}" placeholder="예: 20" min="0" max="100" step="0.1"></div>
     <div class="fg"><label>메모</label><textarea id="lf-notes">${loc?.notes||''}</textarea></div>
   `,[{label:'취소',cls:'btn-secondary',fn:'closeModal()'},{label:isEdit?'저장':'추가',cls:'btn-primary',fn:`submitLocation('${loc?.id||''}')`}]);
 }
 async function submitLocation(id){
   const name=document.getElementById('lf-name').value.trim();if(!name){toast('이름을 입력하세요','e');return;}
-  const loc={name,contact:document.getElementById('lf-contact').value.trim(),address:document.getElementById('lf-addr').value.trim(),notes:document.getElementById('lf-notes').value.trim(),is_active:true};
+  const loc={name,contact:document.getElementById('lf-contact').value.trim(),address:document.getElementById('lf-addr').value.trim(),commission_rate:parseFloat(document.getElementById('lf-commission').value)||0,notes:document.getElementById('lf-notes').value.trim(),is_active:true};
   try{
     if(id){await S.sb.from('consignment_locations').update(loc).eq('id',id);}
     else{await S.sb.from('consignment_locations').insert({...loc,created_at:new Date().toISOString()});}
@@ -2523,6 +2601,12 @@ function getOrderItems(orders){
     return{...i,cost_price:p?.cost_price||0};
   }));
 }
+function calcOrderCommission(o){
+  if(o.order_type!=='consignment'||!o.location_id)return 0;
+  const loc=S.locations.find(l=>l.id===o.location_id);
+  if(!loc||!loc.commission_rate)return 0;
+  return Number(o.total_amount||0)*(loc.commission_rate/100);
+}
 function calcTax(income){
   if(income<=0)return 0;
   const b=[
@@ -2581,7 +2665,8 @@ function renderAnalyticsMain(){
   const totalRev=orders.reduce((a,o)=>a+Number(o.total_amount||0),0);
   const revExVat=Math.round(totalRev/1.1);
   const costTotal=items.reduce((a,i)=>a+(i.cost_price||0)*(i.quantity||1),0);
-  const grossProfit=revExVat-costTotal;
+  const totalCommission=orders.reduce((a,o)=>a+calcOrderCommission(o),0);
+  const grossProfit=revExVat-costTotal-totalCommission;
   const vat=totalRev-revExVat;
   const incomeTax=calcTax(grossProfit);
   const netProfit=grossProfit-incomeTax;
@@ -2618,6 +2703,7 @@ function renderAnalyticsMain(){
         <div class="row-item"><span class="row-label">건당 평균 금액</span><span class="row-value set">₩${avgOrder.toLocaleString()}</span></div>
         <div class="row-item"><span class="row-label">총 판매 수량</span><span class="row-value set">${totalQty}개</span></div>
         <div class="row-item"><span class="row-label">부가세(VAT)</span><span class="row-value set">₩${vat.toLocaleString()}</span></div>
+        <div class="row-item"><span class="row-label">위탁 수수료 지출</span><span class="row-value set" style="color:var(--danger);font-weight:700;">₩${totalCommission.toLocaleString()}</span></div>
       </div>
       <!-- 서브페이지 이동 -->
       <div class="section-title">상세 분석</div>
@@ -2679,9 +2765,11 @@ function renderAnalyticsCustomers(){
   orders.forEach(o=>{
     const dest=o.order_type==='consignment'?(o.location_name||'위탁처 미지정'):(o.customer||'고객 미지정');
     const type=o.order_type==='consignment'?'🚚':'🛒';
-    if(!byDest[dest])byDest[dest]={cnt:0,rev:0,type};
+    if(!byDest[dest])byDest[dest]={cnt:0,rev:0,type,commission:0};
     byDest[dest].cnt++;byDest[dest].rev+=Number(o.total_amount||0);
+    byDest[dest].commission+=calcOrderCommission(o);
   });
+  const totalCommission=Object.values(byDest).reduce((a,v)=>a+v.commission,0);
   const rows=Object.entries(byDest).sort((a,b)=>b[1].rev-a[1].rev).map(([dest,v])=>{
     const pct=totalRev>0?((v.rev/totalRev)*100).toFixed(1):0;
     return`<div class="row-item" style="flex-direction:column;align-items:flex-start;gap:4px;">
@@ -2691,6 +2779,7 @@ function renderAnalyticsCustomers(){
       </div>
       <div style="display:flex;gap:12px;font-size:12px;color:var(--muted);">
         <span>${v.cnt}건</span><span>비중 ${pct}%</span>
+        ${v.commission>0?`<span style="color:var(--danger);">수수료 ₩${v.commission.toLocaleString()}</span>`:''}
       </div>
       <div style="width:100%;background:var(--border2);border-radius:4px;height:4px;margin-top:2px;">
         <div style="width:${pct}%;background:var(--primary);border-radius:4px;height:4px;"></div>
@@ -2701,7 +2790,8 @@ function renderAnalyticsCustomers(){
     <div style="padding:16px;">
       ${analyticsBackBtn()}
       <div style="font-weight:700;font-size:16px;margin-bottom:4px;">판매처별 매출</div>
-      <div style="color:var(--muted);font-size:13px;margin-bottom:16px;">${year}년 · 출고완료 기준</div>
+      <div style="color:var(--muted);font-size:13px;margin-bottom:${totalCommission>0?'8px':'16px'};">${year}년 · 출고완료 기준</div>
+      ${totalCommission>0?`<div class="infobox" style="background:#FEF2F2;border-color:#FECACA;color:var(--danger);margin-bottom:16px;">위탁 수수료 합계: <strong>₩${totalCommission.toLocaleString()}</strong></div>`:''}
       ${rows?`<div class="row-list">${rows}</div>`:'<div class="empty"><div class="icon">👥</div><p>데이터 없음</p></div>'}
     </div>`;
 }
@@ -2740,7 +2830,8 @@ function renderAnalyticsTax(){
   const revExVat=Math.round(totalRev/1.1);
   const vat=totalRev-revExVat;
   const costTotal=items.reduce((a,i)=>(a+(i.cost_price||0)*(i.quantity||1)),0);
-  const grossProfit=revExVat-costTotal;
+  const totalCommission=orders.reduce((a,o)=>a+calcOrderCommission(o),0);
+  const grossProfit=revExVat-costTotal-totalCommission;
   const incomeTax=calcTax(grossProfit);
   const netProfit=grossProfit-incomeTax;
   const taxRate=grossProfit>0?((incomeTax/grossProfit)*100).toFixed(1):0;
@@ -2760,6 +2851,7 @@ function renderAnalyticsTax(){
         <div class="row-item"><span class="row-label">부가세 (VAT 10%)</span><span class="row-value set" style="color:var(--danger);">₩${vat.toLocaleString()}</span></div>
         <div class="row-item"><span class="row-label">공급가액 (VAT제외)</span><span class="row-value set">₩${revExVat.toLocaleString()}</span></div>
         <div class="row-item"><span class="row-label">매출원가</span><span class="row-value set" style="color:var(--danger);">₩${costTotal.toLocaleString()}</span></div>
+        ${totalCommission>0?`<div class="row-item"><span class="row-label">위탁 수수료</span><span class="row-value set" style="color:var(--danger);">₩${totalCommission.toLocaleString()}</span></div>`:''}
         <div class="row-item" style="background:var(--success-l);"><span class="row-label" style="font-weight:700;">영업이익</span><span class="row-value set" style="color:var(--success);font-weight:700;">₩${grossProfit.toLocaleString()}</span></div>
       </div>
       <div class="section-title">종합소득세 추정</div>
@@ -2900,6 +2992,7 @@ CREATE TABLE IF NOT EXISTS ingredients (id UUID DEFAULT gen_random_uuid() PRIMAR
 CREATE TABLE IF NOT EXISTS recipes (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, product_id UUID REFERENCES products(id) ON DELETE CASCADE, batch_weight_g INTEGER DEFAULT 1000, notes TEXT DEFAULT '', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now());
 CREATE TABLE IF NOT EXISTS recipe_items (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, recipe_id UUID REFERENCES recipes(id) ON DELETE CASCADE, ingredient_id UUID REFERENCES ingredients(id) ON DELETE SET NULL, ingredient_name TEXT DEFAULT '', amount_g DECIMAL(10,3) DEFAULT 0, amount_unit TEXT DEFAULT 'g');
 ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS current_stock INTEGER DEFAULT 0;
+ALTER TABLE consignment_locations ADD COLUMN IF NOT EXISTS commission_rate DECIMAL(5,2) DEFAULT 0;
 ALTER TABLE ingredients ENABLE ROW LEVEL SECURITY; ALTER TABLE recipes ENABLE ROW LEVEL SECURITY; ALTER TABLE recipe_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public" ON ingredients FOR ALL USING (true) WITH CHECK (true); CREATE POLICY "Public" ON recipes FOR ALL USING (true) WITH CHECK (true); CREATE POLICY "Public" ON recipe_items FOR ALL USING (true) WITH CHECK (true);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS weight_g DECIMAL(10,2); ALTER TABLE products ADD COLUMN IF NOT EXISTS weight_unit TEXT DEFAULT 'g'; ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_mode TEXT DEFAULT 'manual';
