@@ -154,7 +154,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .modal-title{font-size:17px;font-weight:700;}
 .modal-close{font-size:22px;color:var(--muted);cursor:pointer;border:none;background:none;}
 .modal-body{padding:16px;}
-.modal-footer{padding:0 16px 16px;display:flex;gap:8px;}
+.modal-footer{padding:0 16px 16px;display:flex;flex-wrap:wrap;gap:8px;}
+.btn-fullrow{flex-basis:100%;order:9;}
 .modal-footer .btn{margin:0;}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 /* Toast */
@@ -1982,14 +1983,14 @@ function showProductDetail(id){
       <button class="btn btn-success" onclick="closeModal();go('inout');selectProd('${p.id}');setTxType('in')">📥 입고</button>
       <button class="btn btn-danger" onclick="closeModal();go('inout');selectProd('${p.id}');setTxType('out')">📤 출고</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <button class="btn btn-secondary" onclick="showProductAdjust('${p.id}')">📊 조정</button>
       <button class="btn btn-secondary" onclick="showProductMove('${p.id}')">🔀 이동</button>
     </div>
-    ${!isPkg?`<button class="btn btn-outline" style="width:100%;" onclick="closeModal();showRecipeEditor('${p.id}')">📋 레시피 · 원가계산${unitCostFromRecipe(p.id,p)?` (₩${Math.round(unitCostFromRecipe(p.id,p))}/개)`:''}</button>`:''}
   `,[
     {label:'수정',cls:'btn-outline',fn:isPkg?`closeModal();showPackageProductForm(S.products.find(p=>p.id==='${p.id}'))`:`closeModal();showProductForm(S.products.find(p=>p.id==='${p.id}'))`},
     {label:'삭제',cls:'btn-danger',fn:`confirmDeleteProduct('${p.id}')`},
+    ...(!isPkg?[{label:`📋 레시피 · 원가계산${unitCostFromRecipe(p.id,p)?` (₩${Math.round(unitCostFromRecipe(p.id,p))}/개)`:''}`,cls:'btn-outline btn-fullrow',fn:`closeModal();showRecipeEditor('${p.id}')`}]:[]),
   ]);
 }
 
