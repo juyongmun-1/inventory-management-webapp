@@ -1853,7 +1853,7 @@ function renderProducts(){
     return;
   }
   // 제품 뷰
-  const btn=document.getElementById('stock-add-btn');if(btn)btn.onclick=()=>showProductForm(null);
+  const btn=document.getElementById('stock-add-btn');if(btn)btn.onclick=()=>showProductAddMenu();
   const cats=getCategories();const clsfs=getClassifications();const labels=getTypeLabels();
   const f=S.pFilters||{};const filtered=filteredProducts();
   const activeCount=Object.values(f).filter(Boolean).length;
