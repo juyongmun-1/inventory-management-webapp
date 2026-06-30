@@ -1944,6 +1944,15 @@ function showProductDetail(id){
   const totalCS=cs.reduce((a,s)=>a+s.quantity,0);
   const total=getTotalStock(p);const isLow=total<=p.min_stock&&p.min_stock>0;
   const labels=getTypeLabels();
+  // 레시피 자동계산 모드면 항상 최신값으로 표시 (DB에 저장된 값이 stale할 수 있음)
+  let displayCost=p.cost_price;
+  if(p.product_type!=='package'&&p.cost_mode==='auto'){
+    const uc=unitCostFromRecipe(id,p);
+    if(uc!=null){
+      displayCost=Math.round(uc);
+      if(displayCost!==p.cost_price)autoSyncCost(id); // 백그라운드 DB 동기화
+    }
+  }
   const heroHtml=p.image_url?`<img class="detail-hero-img" src="${p.image_url}" onerror="this.style.display='none'">`:`<div class="detail-hero-ph">${p.type==='oem'?'🔄':'🏭'}</div>`;
   const wsRows=S.warehouses.length>0
     ?S.warehouses.map(w=>{const s=getWS(p.id,w.id);return`<div class="loc-stock-row"><span>🏭 ${w.name}${w.is_default?' ⭐':''}</span><span style="font-weight:700;color:var(--primary)">${s?s.quantity:0}개</span></div>`;}).join('')
@@ -1966,18 +1975,18 @@ function showProductDetail(id){
     ${isPkg?`<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">구성품</div><div class="row-list" style="margin:0 0 14px;">${pkgRows||'<div style="text-align:center;color:var(--muted);padding:10px;font-size:13px;">구성품 없음</div>'}</div>`:''}
     <div class="row-list" style="margin:0 0 14px;">
       <div class="row-item"><span class="row-label">단가</span><span class="row-value set">${p.unit_price?'₩'+Number(p.unit_price).toLocaleString():'-'}</span></div>
-      <div class="row-item"><span class="row-label">원가${isPkg?' (구성품 합계)':''}</span><span class="row-value set">${p.cost_price?'₩'+Number(p.cost_price).toLocaleString():'-'}</span></div>
+      <div class="row-item"><span class="row-label">원가${isPkg?' (구성품 합계)':p.cost_mode==='auto'?' (레시피 자동)':''}</span><span class="row-value set">${displayCost?'₩'+Number(displayCost).toLocaleString():'-'}</span></div>
       <div class="row-item"><span class="row-label">최소 재고</span><span class="row-value set">${p.min_stock}개</span></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
       <button class="btn btn-success" onclick="closeModal();go('inout');selectProd('${p.id}');setTxType('in')">📥 입고</button>
       <button class="btn btn-danger" onclick="closeModal();go('inout');selectProd('${p.id}');setTxType('out')">📤 출고</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      ${!isPkg?`<button class="btn btn-outline" style="grid-column:1/-1;" onclick="closeModal();showRecipeEditor('${p.id}')">📋 레시피 · 원가계산${unitCostFromRecipe(p.id,p)?` (₩${Math.round(unitCostFromRecipe(p.id,p))}/개)`:''}</button>`:''}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
       <button class="btn btn-secondary" onclick="showProductAdjust('${p.id}')">📊 조정</button>
       <button class="btn btn-secondary" onclick="showProductMove('${p.id}')">🔀 이동</button>
     </div>
+    ${!isPkg?`<button class="btn btn-outline" style="width:100%;" onclick="closeModal();showRecipeEditor('${p.id}')">📋 레시피 · 원가계산${unitCostFromRecipe(p.id,p)?` (₩${Math.round(unitCostFromRecipe(p.id,p))}/개)`:''}</button>`:''}
   `,[
     {label:'수정',cls:'btn-outline',fn:isPkg?`closeModal();showPackageProductForm(S.products.find(p=>p.id==='${p.id}'))`:`closeModal();showProductForm(S.products.find(p=>p.id==='${p.id}'))`},
     {label:'삭제',cls:'btn-danger',fn:`confirmDeleteProduct('${p.id}')`},
