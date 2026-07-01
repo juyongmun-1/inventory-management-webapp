@@ -2479,48 +2479,75 @@ function setTxBtnMode(m){S.txBtnMode=m;S.txFromType=m==='adj'?'warehouse':'exter
 function selectProd(id){S.txProduct=S.products.find(p=>p.id===id);if(!S.txWarehouse)S.txWarehouse=getDefaultWarehouse();renderInOut();}
 
 /* 재고 검색 (제품 + 원재료 + 포장재 통합) */
-function showStockSearch(){
+function _stockSearchContext(){
+  // 위탁처 재고만 표시: 출고-위탁처판매, 입고-위탁처회수
+  const isCS=(S.txBtnMode==='out'&&S.txFromType==='consignment')||(S.txBtnMode==='in'&&S.txFromType==='consignment');
+  // 특정 창고 재고만 표시: 이동
+  const isWH=S.txBtnMode==='move';
   const isBatch=(S.txBtnMode==='in'&&S.txFromType==='external')||(S.txBtnMode==='out'&&S.txFromType==='warehouse'&&S.txToType==='external');
-  const searchTab=S._stockSearchTab||'product';
-  const allItems={
-    product:S.products.map(p=>({id:p.id,name:p.name,code:p.code||'',stock:getTotalStock(p),itemType:'product'})),
-    ingredient:S.ingredients.filter(i=>!PKG_CATS.includes(i.category||'')).map(i=>({id:i.id,name:i.name,code:i.category||'',stock:i.current_stock||0,itemType:'ingredient'})),
-    packaging:S.ingredients.filter(i=>PKG_CATS.includes(i.category||'')).map(i=>({id:i.id,name:i.name,code:i.category||'',stock:i.current_stock||0,itemType:'ingredient'})),
+  return{isCS,isWH,isBatch};
+}
+function _getContextStock(it,isCS,isWH,isIng){
+  if(isCS&&S.txLocation)return(getCS(it.id,S.txLocation.id)||{quantity:0}).quantity;
+  if(isWH&&S.txWarehouse)return isIng?(it.current_stock||0):whStockInfo(it.id,S.txWarehouse.id);
+  return isIng?(it.current_stock||0):getTotalStock(it);
+}
+function showStockSearch(){
+  const {isCS,isWH,isBatch}=_stockSearchContext();
+  // 위탁처/창고 필터 시 제품만 의미있음 → 탭 고정
+  const forceProductTab=isCS||isWH;
+  const searchTab=forceProductTab?'product':(S._stockSearchTab||'product');
+  if(forceProductTab)S._stockSearchTab='product';
+
+  const baseItems={
+    product:S.products,
+    ingredient:S.ingredients.filter(i=>!PKG_CATS.includes(i.category||'')),
+    packaging:S.ingredients.filter(i=>PKG_CATS.includes(i.category||'')),
   };
-  const items=allItems[searchTab]||[];
+  const isIng=searchTab!=='product';
+  let items=(baseItems[searchTab]||[]).map(it=>{
+    const stock=_getContextStock(it,isCS,isWH,isIng);
+    return{...it,_ctxStock:stock,_isIng:isIng};
+  });
+  // 위탁처/창고 필터 시 해당 재고 있는 것만
+  if((isCS&&S.txLocation)||(isWH&&S.txWarehouse))items=items.filter(it=>it._ctxStock>0);
+
   const tabs=[['product','📦 제품'],['ingredient','🧪 원재료'],['packaging','📦 포장재']];
-  const tabBar=tabs.map(([v,l])=>`<button onclick="S._stockSearchTab='${v}';showStockSearch()" style="flex:1;padding:8px 4px;border:none;background:none;font-size:12px;font-weight:700;cursor:pointer;border-bottom:2px solid ${searchTab===v?'var(--primary)':'transparent'};color:${searchTab===v?'var(--primary)':'var(--muted)'};">${l}</button>`).join('');
-  const onSelect=isBatch
-    ?`S.txItems.push({...S.ingredients.find(x=>x.id==='ID')||S.products.find(x=>x.id==='ID'),id:'ID',name:'NAME',code:'CODE',stock:STOCK,itemType:'ITYPE',qty:1});closeModal();renderInOut()`
-    :`S.txProduct={id:'ID',name:'NAME',code:'CODE',_itemType:'ITYPE'};if(!S.txWarehouse)S.txWarehouse=getDefaultWarehouse();closeModal();renderInOut()`;
+  const tabBar=forceProductTab?'':`<div style="display:flex;border-bottom:1px solid var(--border2);margin-bottom:8px;">${tabs.map(([v,l])=>`<button onclick="S._stockSearchTab='${v}';showStockSearch()" style="flex:1;padding:8px 4px;border:none;background:none;font-size:12px;font-weight:700;cursor:pointer;border-bottom:2px solid ${searchTab===v?'var(--primary)':'transparent'};color:${searchTab===v?'var(--primary)':'var(--muted)'};">${l}</button>`).join('')}</div>`;
+  const contextLabel=isCS&&S.txLocation?`위탁 재고 (${S.txLocation.name})`:isWH&&S.txWarehouse?`창고 재고 (${S.txWarehouse.name})`:'재고';
   const rows=items.map(it=>{
+    const itype=it._isIng?'ingredient':'product';
     const fn=isBatch
-      ?`S.txItems.push({id:'${it.id}',name:'${it.name.replace(/'/g,"\\'")}',code:'${it.code}',stock:${it.stock},itemType:'${it.itemType}',qty:1});closeModal();renderInOut()`
-      :`S.txProduct={id:'${it.id}',name:'${it.name.replace(/'/g,"\\'")}',code:'${it.code}',_itemType:'${it.itemType}'};if(!S.txWarehouse)S.txWarehouse=getDefaultWarehouse();closeModal();renderInOut()`;
-    return`<div class="sitem" onclick="${fn}"><div><div class="sitem-name">${it.name}</div><div class="sitem-sub">${it.code} · 재고 ${it.stock}개</div></div><span class="badge badge-primary">${it.stock}</span></div>`;
+      ?`S.txItems.push({id:'${it.id}',name:'${it.name.replace(/'/g,"\\'")}',code:'${it.code||it.category||''}',stock:${it._ctxStock},itemType:'${itype}',qty:1});closeModal();renderInOut()`
+      :`S.txProduct={id:'${it.id}',name:'${it.name.replace(/'/g,"\\'")}',code:'${it.code||''}',_itemType:'${itype}'};if(!S.txWarehouse)S.txWarehouse=getDefaultWarehouse();closeModal();renderInOut()`;
+    return`<div class="sitem" onclick="${fn}"><div><div class="sitem-name">${it.name}</div><div class="sitem-sub">${it.code||it.category||''} · ${contextLabel} ${it._ctxStock}개</div></div><span class="badge badge-primary">${it._ctxStock}</span></div>`;
   }).join('');
   showModal('재고 선택',`
-    <div style="display:flex;border-bottom:1px solid var(--border2);margin-bottom:8px;">${tabBar}</div>
+    ${tabBar}
     <div class="search-box" style="margin-bottom:8px;"><input type="search" class="search-input" id="ss-inp" placeholder="검색..." oninput="filterStockList(this.value,'${searchTab}')"></div>
-    <div id="ss-list">${rows||'<div style="color:var(--muted);text-align:center;padding:20px;">항목 없음</div>'}</div>
+    <div id="ss-list">${rows||`<div style="color:var(--muted);text-align:center;padding:20px;">${(isCS&&S.txLocation)||(isWH&&S.txWarehouse)?'해당 재고 없음':'항목 없음'}</div>`}</div>
   `);
   setTimeout(()=>document.getElementById('ss-inp')?.focus(),200);
 }
 window.filterStockList=function(q,tab){
-  const allItems={
+  const {isCS,isWH,isBatch}=_stockSearchContext();
+  const baseItems={
     product:S.products,ingredient:S.ingredients.filter(i=>!PKG_CATS.includes(i.category||'')),packaging:S.ingredients.filter(i=>PKG_CATS.includes(i.category||''))
   };
-  const isBatch=S.txType==='in'||S.txType==='out';
-  const items=(allItems[tab]||[]).filter(i=>!q||i.name.toLowerCase().includes(q.toLowerCase()));
-  const el=document.getElementById('ss-list');if(!el)return;
   const isIng=tab!=='product';
+  let items=(baseItems[tab]||[]).filter(i=>!q||i.name.toLowerCase().includes(q.toLowerCase())).map(it=>{
+    const stock=_getContextStock(it,isCS,isWH,isIng);
+    return{...it,_ctxStock:stock,_isIng:isIng};
+  });
+  if((isCS&&S.txLocation)||(isWH&&S.txWarehouse))items=items.filter(it=>it._ctxStock>0);
+  const el=document.getElementById('ss-list');if(!el)return;
+  const contextLabel=isCS&&S.txLocation?`위탁 재고 (${S.txLocation.name})`:isWH&&S.txWarehouse?`창고 재고 (${S.txWarehouse.name})`:'재고';
   el.innerHTML=items.map(it=>{
-    const stock=isIng?(it.current_stock||0):getTotalStock(it);
-    const itype=isIng?'ingredient':'product';
+    const itype=it._isIng?'ingredient':'product';
     const fn=isBatch
-      ?`S.txItems.push({id:'${it.id}',name:'${it.name.replace(/'/g,"\\'")}',code:'${it.code||it.category||''}',stock:${stock},itemType:'${itype}',qty:1});closeModal();renderInOut()`
+      ?`S.txItems.push({id:'${it.id}',name:'${it.name.replace(/'/g,"\\'")}',code:'${it.code||it.category||''}',stock:${it._ctxStock},itemType:'${itype}',qty:1});closeModal();renderInOut()`
       :`S.txProduct={id:'${it.id}',name:'${it.name.replace(/'/g,"\\'")}',code:'${it.code||''}',_itemType:'${itype}'};if(!S.txWarehouse)S.txWarehouse=getDefaultWarehouse();closeModal();renderInOut()`;
-    return`<div class="sitem" onclick="${fn}"><div><div class="sitem-name">${it.name}</div><div class="sitem-sub">${it.code||it.category||''} · 재고 ${stock}개</div></div><span class="badge badge-primary">${stock}</span></div>`;
+    return`<div class="sitem" onclick="${fn}"><div><div class="sitem-name">${it.name}</div><div class="sitem-sub">${it.code||it.category||''} · ${contextLabel} ${it._ctxStock}개</div></div><span class="badge badge-primary">${it._ctxStock}</span></div>`;
   }).join('')||'<div style="color:var(--muted);text-align:center;padding:20px;">검색 결과 없음</div>';
 };
 
