@@ -2374,7 +2374,7 @@ const TX_DESC={
   consignment_adj:'📊 <b>위탁 실사</b>: 위탁처 실제 수량으로 수정합니다',
 };
 
-function whStockInfo(pid,wid){const ws=getWS(pid,wid);return ws?ws.quantity:0;}
+function whStockInfo(pid,wid){const ws=getWS(pid,wid);if(ws!=null)return ws.quantity;const p=S.products.find(x=>x.id===pid);return p?p.current_stock:0;}
 
 /* 원재료 입출고 처리 */
 async function recordIngTx(data){
@@ -2395,7 +2395,7 @@ function renderInOut(){
   let locInfo='';
   if(S.txProduct&&S.txLocation&&needsLoc(type)){const cs=getCS(S.txProduct.id,S.txLocation.id);locInfo=`<div style="font-size:12px;color:var(--muted);margin-top:4px;">위탁 재고: <strong>${cs?cs.quantity:0}개</strong></div>`;}
   let whInfo='';
-  if(S.txProduct&&S.txWarehouse&&!isMove&&!isBatch){const q=whStockInfo(S.txProduct.id,S.txWarehouse.id);whInfo=`<div style="font-size:12px;color:var(--muted);margin-top:4px;">해당 창고 재고: <strong>${q}개</strong></div>`;}
+  if(S.txProduct&&S.txWarehouse&&!isMove&&!isBatch&&needsWH(type)){const q=whStockInfo(S.txProduct.id,S.txWarehouse.id);whInfo=`<div style="font-size:12px;color:var(--muted);margin-top:4px;">해당 창고 재고: <strong>${q}개</strong></div>`;}
   const btnCls=type==='in'||type==='return_consignment'?'btn-success':type==='out'||type==='consignment_sale'?'btn-danger':type==='send_consignment'||type==='move'?'btn-primary':'btn-secondary';
 
   const whSelector=(label,val,fn)=>hasWarehouses
