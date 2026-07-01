@@ -296,7 +296,7 @@ const S={
   stockTab:'products',
   pSearch:'',pFilter:'all',pSort:'name',
   pFilters:{stock:null,type:null,classification:null,category:null,location:null},
-  txType:'in',txProduct:null,txLocation:null,txWarehouse:null,txToWarehouse:null,txItems:[],
+  txType:'in',txBtnMode:'in',txFromType:'external',txToType:'external',txProduct:null,txLocation:null,txWarehouse:null,txToWarehouse:null,txItems:[],
   histFilter:'all',histLocFilter:'all',
   salesFilter:'all',purchaseFilter:'all',
   pendingItems:[],pendingImageFile:null,
@@ -2387,76 +2387,100 @@ async function recordIngTx(data){
 }
 
 function renderInOut(){
-  const type=S.txType;const tt=TX_TYPES.find(t=>t.id===type);
-  const whTypes=TX_TYPES.filter(t=>t.group==='wh');const csTypes=TX_TYPES.filter(t=>t.group==='cs');
-  const isMove=type==='move';const isAdj=type==='warehouse_adj'||type==='consignment_adj';
-  const isBatch=(type==='in'||type==='out')&&!isMove;
-  const hasWarehouses=S.warehouses.length>0;
-  let locInfo='';
-  if(S.txProduct&&S.txLocation&&needsLoc(type)){const cs=getCS(S.txProduct.id,S.txLocation.id);locInfo=`<div style="font-size:12px;color:var(--muted);margin-top:4px;">위탁 재고: <strong>${cs?cs.quantity:0}개</strong></div>`;}
-  let whInfo='';
-  if(S.txProduct&&S.txWarehouse&&!isMove&&!isBatch&&needsWH(type)){const q=whStockInfo(S.txProduct.id,S.txWarehouse.id);whInfo=`<div style="font-size:12px;color:var(--muted);margin-top:4px;">해당 창고 재고: <strong>${q}개</strong></div>`;}
-  const btnCls=type==='in'||type==='return_consignment'?'btn-success':type==='out'||type==='consignment_sale'?'btn-danger':type==='send_consignment'||type==='move'?'btn-primary':'btn-secondary';
+  syncTxType();
+  const mode=S.txBtnMode,type=S.txType;
+  const hasWH=S.warehouses.length>0;
+  const MODES=[{id:'in',icon:'📥',label:'입고'},{id:'out',icon:'📤',label:'출고'},{id:'adj',icon:'📊',label:'실사'},{id:'move',icon:'🔀',label:'이동'}];
+  const modeColors={in:'var(--success)',out:'var(--danger)',adj:'var(--muted)',move:'var(--primary)'};
+  const btnBar=`<div class="type-grid" style="grid-template-columns:repeat(4,1fr);">${MODES.map(m=>{const active=mode===m.id;return`<div class="type-btn" style="${active?`border:2px solid ${modeColors[m.id]};background:${m.id==='in'?'var(--success-l)':m.id==='out'?'#fff0f0':m.id==='move'?'var(--primary-l)':'var(--bg)'}`:''}" onclick="setTxBtnMode('${m.id}')"><span>${m.icon}</span><p style="${active?`color:${modeColors[m.id]};font-weight:800`:''}">${m.label}</p></div>`;}).join('')}</div>`;
 
-  const whSelector=(label,val,fn)=>hasWarehouses
+  const whSel=(label,val,fn)=>hasWH
     ?`<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;">${label}</div><div class="selector-row ${val?'sel':''}" onclick="${fn}"><span class="selector-text">${val?val.name:'창고를 선택하세요'}</span><span>▼</span></div>`
     :`<div class="infobox" style="margin-bottom:10px;">창고를 먼저 추가하세요 → <b onclick="go('warehouses')" style="cursor:pointer;">창고 관리</b></div>`;
-
-  // ── 다중 항목 입고/출고 UI ──
-  const batchItemsHtml=isBatch?`
-    ${(type==='in'||type==='out')?whSelector('창고 선택 (전체 적용)',S.txWarehouse,"showWhSearch('single')"):''}
-    <div style="font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 6px;">재고 목록</div>
+  const locSel=(label,val)=>`<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;">${label}</div><div class="selector-row ${val?'sel':''}" onclick="showLocSearch()"><span class="selector-text">${val?val.name:'위탁처를 선택하세요'}</span><span>▼</span></div>`;
+  const chips=(opts,sel,key)=>`<div style="display:flex;gap:8px;margin-bottom:12px;">${opts.map(([v,l])=>`<div onclick="S.tx${key}='${v}';S.txProduct=null;S.txLocation=null;syncTxType();renderInOut()" style="flex:1;padding:9px 6px;border-radius:8px;border:2px solid ${sel===v?'var(--primary)':'var(--border2)'};background:${sel===v?'var(--primary-l)':'#fff'};color:${sel===v?'var(--primary)':'var(--text)'};font-size:13px;font-weight:700;cursor:pointer;text-align:center;">${l}</div>`).join('')}</div>`;
+  const batchList=()=>`
     ${S.txItems.length===0?`<div style="text-align:center;color:var(--muted);padding:14px;font-size:14px;">+ 버튼으로 재고를 추가하세요</div>`
-      :S.txItems.map((it,i)=>`<div class="order-item-row" style="margin-bottom:2px;">
-        <div class="oi-name">
-          <div>${it.name}</div>
-          <div class="oi-sub">${it.itemType==='ingredient'?`🧪 원재료 · 현재 ${it.stock}개`:`📦 제품 · ${it.code||''}`}</div>
-        </div>
-        <div class="oi-qty"><input type="number" value="${it.qty||1}" min="1" onchange="S.txItems[${i}].qty=parseInt(this.value)||1"></div>
-        <button class="oi-del" onclick="S.txItems.splice(${i},1);renderInOut()">×</button>
-      </div>`).join('')}
+      :S.txItems.map((it,i)=>`<div class="order-item-row" style="margin-bottom:2px;"><div class="oi-name"><div>${it.name}</div><div class="oi-sub">${it.itemType==='ingredient'?`🧪 원재료 · 현재 ${it.stock}개`:`📦 제품 · ${it.code||''}`}</div></div><div class="oi-qty"><input type="number" value="${it.qty||1}" min="1" onchange="S.txItems[${i}].qty=parseInt(this.value)||1"></div><button class="oi-del" onclick="S.txItems.splice(${i},1);renderInOut()">×</button></div>`).join('')}
     <button class="btn btn-outline" style="margin-top:8px;width:100%;" onclick="showStockSearch()">+ 재고 추가</button>
-  `:'';
+    <div class="fg" style="margin-top:10px;margin-bottom:0;"><label>메모 (선택)</label><input type="text" id="tx-notes" placeholder="납품처, 이유 등"></div>`;
+  const singleForm=(isAdj)=>`
+    <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;">재고 선택</div>
+    <div class="selector-row ${S.txProduct?'sel':''}" onclick="showStockSearch()"><span class="selector-text">${S.txProduct?S.txProduct.name:'재고를 선택하세요'}</span><span>▼</span></div>
+    <div class="fg" style="margin-top:10px;"><label>${isAdj?'실제 수량':'수량'}</label><input type="number" id="tx-qty" placeholder="0" min="0" style="font-size:24px;font-weight:800;text-align:center;"></div>
+    <div class="fg" style="margin-bottom:0;"><label>메모 (선택)</label><input type="text" id="tx-notes" placeholder="납품처, 이유 등"></div>`;
+
+  let formHtml='',isBatch=false,btnCls='btn-secondary',btnLabel='처리',submitFn='submitTx()';
+
+  if(mode==='in'){
+    isBatch=S.txFromType==='external';
+    btnCls='btn-success';btnLabel=`📥 입고 처리${isBatch?` (${S.txItems.length}개)`:''}`;
+    submitFn=isBatch?'submitBatchTx()':'submitTx()';
+    formHtml=`
+      ${chips([['external','외부 입고'],['consignment','위탁처 회수']],S.txFromType,'FromType')}
+      ${S.txFromType==='consignment'?locSel('위탁처 (출발)',S.txLocation)+(S.txProduct&&S.txLocation?`<div style="font-size:12px;color:var(--muted);margin-top:4px;margin-bottom:8px;">위탁 재고: <strong>${(getCS(S.txProduct.id,S.txLocation.id)||{quantity:0}).quantity}개</strong></div>`:''):''}
+      ${whSel('입고 창고',S.txWarehouse,"showWhSearch('single')")}
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 6px;">재고 ${isBatch?'목록':'선택'}</div>
+      ${isBatch?batchList():singleForm(false)}`;
+  }else if(mode==='out'){
+    const fromCS=S.txFromType==='consignment';
+    const toCS=!fromCS&&S.txToType==='consignment';
+    isBatch=!fromCS&&!toCS;
+    btnCls='btn-danger';btnLabel=`📤 출고 처리${isBatch?` (${S.txItems.length}개)`:''}`;
+    submitFn=isBatch?'submitBatchTx()':'submitTx()';
+    formHtml=`
+      ${chips([['warehouse','창고에서 출고'],['consignment','위탁처에서 판매']],S.txFromType,'FromType')}
+      ${fromCS?`
+        ${locSel('위탁처 (출발)',S.txLocation)}
+        ${S.txProduct&&S.txLocation?`<div style="font-size:12px;color:var(--muted);margin-top:4px;margin-bottom:8px;">위탁 재고: <strong>${(getCS(S.txProduct.id,S.txLocation.id)||{quantity:0}).quantity}개</strong></div>`:''}
+        <div style="font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 6px;">재고 선택</div>
+        ${singleForm(false)}
+      `:`
+        ${whSel('출발 창고',S.txWarehouse,"showWhSearch('single')")}
+        ${S.txProduct&&S.txWarehouse?`<div style="font-size:12px;color:var(--muted);margin-top:4px;">창고 재고: <strong>${whStockInfo(S.txProduct.id,S.txWarehouse.id)}개</strong></div>`:''}
+        <div style="margin:12px 0 6px;">${chips([['external','외부 출고'],['consignment','위탁처로 발송']],S.txToType,'ToType')}</div>
+        ${toCS?locSel('위탁처 (도착)',S.txLocation):''}
+        <div style="font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 6px;">재고 ${isBatch?'목록':'선택'}</div>
+        ${isBatch?batchList():singleForm(false)}
+      `}`;
+  }else if(mode==='adj'){
+    btnCls='btn-secondary';btnLabel='📊 실사 처리';
+    formHtml=`
+      ${chips([['warehouse','창고 실사'],['consignment','위탁처 실사']],S.txFromType,'FromType')}
+      ${S.txFromType==='warehouse'?whSel('창고 선택',S.txWarehouse,"showWhSearch('single')"):locSel('위탁처 선택',S.txLocation)}
+      ${singleForm(true)}`;
+  }else if(mode==='move'){
+    btnCls='btn-primary';btnLabel='🔀 이동 처리';
+    formHtml=`
+      ${whSel('출발 창고',S.txWarehouse,"showWhSearch('from')")}
+      ${S.txProduct&&S.txWarehouse?`<div style="font-size:12px;color:var(--muted);margin-top:4px;margin-bottom:8px;">출발 창고 재고: <strong>${whStockInfo(S.txProduct.id,S.txWarehouse.id)}개</strong></div>`:''}
+      ${whSel('도착 창고',S.txToWarehouse,"showWhSearch('to')")}
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 6px;">재고 선택</div>
+      ${singleForm(false)}`;
+  }
 
   document.getElementById('content').innerHTML=`
     <div style="padding:16px;">
-      <div class="card card-pad" style="margin:0 0 12px;">
-        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;">창고 작업</div>
-        <div class="type-grid">${whTypes.map(t=>`<div class="type-btn ${type===t.id?t.sel:''}" onclick="setTxType('${t.id}')"><span>${t.icon}</span><p>${t.label}</p></div>`).join('')}</div>
-        <div style="font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 6px;">위탁 작업</div>
-        <div class="type-grid">${csTypes.map(t=>`<div class="type-btn ${type===t.id?t.sel:''}" onclick="setTxType('${t.id}')"><span>${t.icon}</span><p>${t.label}</p></div>`).join('')}</div>
-      </div>
-      <div class="card card-pad" style="margin:0 0 12px;">
-        ${isBatch?batchItemsHtml:`
-        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;">재고 선택</div>
-        <div class="selector-row ${S.txProduct?'sel':''}" onclick="showStockSearch()"><span class="selector-text">${S.txProduct?S.txProduct.name:'재고를 선택하세요'}</span><span>▼</span></div>
-        ${isMove?`
-          ${whSelector('출발 창고',S.txWarehouse,"showWhSearch('from')")}
-          ${S.txWarehouse&&S.txProduct?`<div style="font-size:12px;color:var(--muted);margin-top:4px;margin-bottom:6px;">출발 창고 재고: <strong>${whStockInfo(S.txProduct.id,S.txWarehouse.id)}개</strong></div>`:''}
-          ${whSelector('도착 창고',S.txToWarehouse,"showWhSearch('to')")}
-        `:`
-          ${needsWH(type)?whSelector('창고 선택',S.txWarehouse,"showWhSearch('single')"):''}
-          ${whInfo}
-          ${needsLoc(type)?`<div style="font-size:11px;font-weight:700;color:var(--muted);margin-top:8px;margin-bottom:6px;">위탁처 선택</div><div class="selector-row ${S.txLocation?'sel':''}" onclick="showLocSearch()"><span class="selector-text">${S.txLocation?S.txLocation.name:'위탁처를 선택하세요'}</span><span>▼</span></div>${locInfo}`:''}
-        `}
-        <div class="fg" style="margin-top:10px;"><label>${isAdj?'실제 수량':'수량'}</label><input type="number" id="tx-qty" placeholder="0" min="0" style="font-size:24px;font-weight:800;text-align:center;"></div>
-        <div class="fg" style="margin-bottom:0;"><label>메모 (선택)</label><input type="text" id="tx-notes" placeholder="납품처, 이유 등"></div>
-        `}
-        ${isBatch?`<div class="fg" style="margin-top:8px;margin-bottom:0;"><label>메모 (선택)</label><input type="text" id="tx-notes" placeholder="납품처, 이유 등"></div>`:''}
-      </div>
-      <button class="btn ${btnCls}" onclick="${isBatch?'submitBatchTx()':'submitTx()'}">
-        ${tt?.icon||''} ${tt?.label||''} ${isBatch?`처리 (${S.txItems.length}개 항목)`:'처리'}
-      </button>
+      <div class="card card-pad" style="margin:0 0 12px;">${btnBar}</div>
+      <div class="card card-pad" style="margin:0 0 12px;">${formHtml}</div>
+      <button class="btn ${btnCls}" onclick="${submitFn}">${btnLabel}</button>
       <div class="infobox" style="margin-top:10px;">${TX_DESC[type]||''}</div>
-    </div>
-  `;
+    </div>`;
 }
 function setTxType(t){S.txType=t;S.txItems=[];renderInOut();}
+function syncTxType(){
+  const m=S.txBtnMode,f=S.txFromType,t=S.txToType;
+  if(m==='move')S.txType='move';
+  else if(m==='adj')S.txType=f==='consignment'?'consignment_adj':'warehouse_adj';
+  else if(m==='in')S.txType=f==='consignment'?'return_consignment':'in';
+  else if(m==='out'){if(f==='consignment')S.txType='consignment_sale';else S.txType=t==='consignment'?'send_consignment':'out';}
+}
+function setTxBtnMode(m){S.txBtnMode=m;S.txFromType=m==='adj'?'warehouse':'external';S.txToType='external';S.txItems=[];S.txProduct=null;S.txLocation=null;S.txToWarehouse=null;syncTxType();renderInOut();}
 function selectProd(id){S.txProduct=S.products.find(p=>p.id===id);if(!S.txWarehouse)S.txWarehouse=getDefaultWarehouse();renderInOut();}
 
 /* 재고 검색 (제품 + 원재료 + 포장재 통합) */
 function showStockSearch(){
-  const isBatch=S.txType==='in'||S.txType==='out';
+  const isBatch=(S.txBtnMode==='in'&&S.txFromType==='external')||(S.txBtnMode==='out'&&S.txFromType==='warehouse'&&S.txToType==='external');
   const searchTab=S._stockSearchTab||'product';
   const allItems={
     product:S.products.map(p=>({id:p.id,name:p.name,code:p.code||'',stock:getTotalStock(p),itemType:'product'})),
