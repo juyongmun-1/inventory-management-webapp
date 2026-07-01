@@ -1829,7 +1829,7 @@ function renderIngredientTab(tab){
     return`<div class="row-item" onclick="showIngredientDetail('${ing.id}')">
       <div style="flex:1;min-width:0;">
         <div style="font-weight:700;">${ing.name}</div>
-        <div style="font-size:12px;color:var(--muted);">₩${ppg.toFixed(2)}/g${ing.density?` · 밀도 ${ing.density}g/ml`:''}</div>
+        <div style="font-size:12px;color:var(--muted);">${isPackaging?`₩${Number(ing.package_price||0).toLocaleString()}`:`₩${ppg.toFixed(2)}/g${ing.density?` · 밀도 ${ing.density}g/ml`:''}`}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;">
         <div style="font-size:18px;font-weight:800;color:${stockColor};">${stock}</div>
