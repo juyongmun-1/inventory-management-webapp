@@ -2814,16 +2814,34 @@ function renderMore(){
 /* ── 매출 현황 ── */
 /* ── 매출 현황 공통 헬퍼 ── */
 function getYearOrders(year){
-  return S.salesOrders.filter(o=>{
-    if(o.status!=='completed')return false;
-    return new Date(o.created_at).getFullYear()===year;
+  return S.salesOrders.filter(o=>o.status==='completed'&&new Date(o.created_at).getFullYear()===year);
+}
+// consignment_sale 트랜잭션을 pseudo-order 형태로 변환
+function getYearCsSales(year){
+  return(S.transactions||[]).filter(t=>t.type==='consignment_sale'&&new Date(t.created_at).getFullYear()===year).map(t=>{
+    const p=S.products.find(x=>x.id===t.product_id);
+    const unitPrice=p?.unit_price||0;
+    return{id:'cs_'+t.id,created_at:t.created_at,total_amount:unitPrice*t.quantity,order_type:'cs_sale',location_name:t.location_name,location_id:t.location_id,status:'completed',_isCsSale:true,_tx:t,_unitPrice:unitPrice,_costPrice:p?.cost_price||0};
   });
 }
+function getAllYearSales(year){return[...getYearOrders(year),...getYearCsSales(year)];}
 function getOrderItems(orders){
-  return orders.flatMap(o=>S.salesOrderItems.filter(i=>i.order_id===o.id).map(i=>{
-    const p=S.products.find(x=>x.id===i.product_id);
-    return{...i,cost_price:p?.cost_price||0};
-  }));
+  return orders.flatMap(o=>{
+    if(o._isCsSale){
+      const t=o._tx;
+      return[{order_id:o.id,product_id:t.product_id,product_name:t.product_name,quantity:t.quantity,unit_price:o._unitPrice,cost_price:o._costPrice}];
+    }
+    return S.salesOrderItems.filter(i=>i.order_id===o.id).map(i=>{
+      const p=S.products.find(x=>x.id===i.product_id);
+      return{...i,cost_price:p?.cost_price||0};
+    });
+  });
+}
+function calcCsSaleCommission(o){
+  if(!o._isCsSale||!o.location_id)return 0;
+  const loc=S.locations.find(l=>l.id===o.location_id);
+  if(!loc||!loc.commission_rate)return 0;
+  return Number(o.total_amount||0)*(loc.commission_rate/100);
 }
 function calcOrderCommission(o){
   if(o.order_type!=='consignment'||!o.location_id)return 0;
@@ -2884,12 +2902,12 @@ function renderAnalytics(){
 function renderAnalyticsMain(){
   if(!S.analyticsYear)S.analyticsYear=new Date().getFullYear();
   const year=S.analyticsYear;
-  const orders=getYearOrders(year);
+  const orders=getAllYearSales(year);
   const items=getOrderItems(orders);
   const totalRev=orders.reduce((a,o)=>a+Number(o.total_amount||0),0);
   const revExVat=Math.round(totalRev/1.1);
   const costTotal=items.reduce((a,i)=>a+(i.cost_price||0)*(i.quantity||1),0);
-  const totalCommission=orders.reduce((a,o)=>a+calcOrderCommission(o),0);
+  const totalCommission=orders.reduce((a,o)=>a+(o._isCsSale?calcCsSaleCommission(o):calcOrderCommission(o)),0);
   const grossProfit=revExVat-costTotal-totalCommission;
   const vat=totalRev-revExVat;
   const incomeTax=calcTax(grossProfit);
@@ -2943,7 +2961,7 @@ function renderAnalyticsMain(){
 /* ── 품목별 매출 ── */
 function renderAnalyticsProducts(){
   const year=S.analyticsYear||new Date().getFullYear();
-  const orders=getYearOrders(year);
+  const orders=getAllYearSales(year);
   const items=getOrderItems(orders);
   const totalRev=orders.reduce((a,o)=>a+Number(o.total_amount||0),0);
   const byProd={};
@@ -2983,15 +3001,15 @@ function renderAnalyticsProducts(){
 /* ── 판매처별 매출 ── */
 function renderAnalyticsCustomers(){
   const year=S.analyticsYear||new Date().getFullYear();
-  const orders=getYearOrders(year);
+  const orders=getAllYearSales(year);
   const totalRev=orders.reduce((a,o)=>a+Number(o.total_amount||0),0);
   const byDest={};
   orders.forEach(o=>{
-    const dest=o.order_type==='consignment'?(o.location_name||'위탁처 미지정'):(o.customer||'고객 미지정');
-    const type=o.order_type==='consignment'?'🚚':'🛒';
+    const dest=o._isCsSale?(o.location_name||'위탁처 미지정'):o.order_type==='consignment'?(o.location_name||'위탁처 미지정'):(o.customer||'고객 미지정');
+    const type=o._isCsSale?'🛍️':o.order_type==='consignment'?'🚚':'🛒';
     if(!byDest[dest])byDest[dest]={cnt:0,rev:0,type,commission:0};
     byDest[dest].cnt++;byDest[dest].rev+=Number(o.total_amount||0);
-    byDest[dest].commission+=calcOrderCommission(o);
+    byDest[dest].commission+=o._isCsSale?calcCsSaleCommission(o):calcOrderCommission(o);
   });
   const totalCommission=Object.values(byDest).reduce((a,v)=>a+v.commission,0);
   const rows=Object.entries(byDest).sort((a,b)=>b[1].rev-a[1].rev).map(([dest,v])=>{
