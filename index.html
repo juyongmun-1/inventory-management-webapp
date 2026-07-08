@@ -3346,14 +3346,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_purchase_order_no ON purchase_orders(order_
 ALTER TABLE sales_orders ENABLE ROW LEVEL SECURITY; ALTER TABLE sales_order_items ENABLE ROW LEVEL SECURITY; ALTER TABLE purchase_orders ENABLE ROW LEVEL SECURITY; ALTER TABLE purchase_order_items ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public" ON sales_orders; DROP POLICY IF EXISTS "Authenticated" ON sales_orders; CREATE POLICY "Authenticated" ON sales_orders FOR ALL TO authenticated USING (true) WITH CHECK (true); DROP POLICY IF EXISTS "Public" ON sales_order_items; DROP POLICY IF EXISTS "Authenticated" ON sales_order_items; CREATE POLICY "Authenticated" ON sales_order_items FOR ALL TO authenticated USING (true) WITH CHECK (true); DROP POLICY IF EXISTS "Public" ON purchase_orders; DROP POLICY IF EXISTS "Authenticated" ON purchase_orders; CREATE POLICY "Authenticated" ON purchase_orders FOR ALL TO authenticated USING (true) WITH CHECK (true); DROP POLICY IF EXISTS "Public" ON purchase_order_items; DROP POLICY IF EXISTS "Authenticated" ON purchase_order_items; CREATE POLICY "Authenticated" ON purchase_order_items FOR ALL TO authenticated USING (true) WITH CHECK (true);
 -- 🔒 기본 테이블도 인증 사용자만 접근 (로그인 없이는 데이터 접근·수정 차단)
-DO $ DECLARE t text; BEGIN
+DO $$ DECLARE t text; BEGIN
   FOREACH t IN ARRAY ARRAY['products','transactions','consignment_locations','consignment_stocks'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS "Public" ON %I', t);
     EXECUTE format('DROP POLICY IF EXISTS "Authenticated" ON %I', t);
     EXECUTE format('CREATE POLICY "Authenticated" ON %I FOR ALL TO authenticated USING (true) WITH CHECK (true)', t);
   END LOOP;
-END $;`;
+END $$;`;
   navigator.clipboard.writeText(sql).then(()=>toast('SQL 복사됨! Supabase SQL Editor에 붙여넣어 실행하세요','s'));
 }
 
